@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR 워크스루</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<!-- Non-blocking: a slow or offline font server must not hold the renderer script. -->
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+:root {
+  --bg: #fff; --soft: #f9f9f9; --card: #fff;
+  --text: rgba(0,0,0,.9); --text-2: rgba(0,0,0,.6); --text-3: rgba(0,0,0,.47);
+  --line: rgba(0,0,0,.12); --shadow: 0 4px 20px rgba(0,0,0,.075);
+  --clay: #d97757; --clay-strong: #c6613f; --clay-bg: rgba(217,119,87,.12);
+  --good: #006c10; --good-bg: rgba(16,161,34,.14);
+  --bad: #a42528; --bad-bg: rgba(220,60,61,.12);
+  --watch: #794c02; --watch-bg: rgba(251,179,21,.16);
+  --idle-bg: rgba(0,0,0,.05); --code-bg: #f6f5f2;
+  --serif: "Noto Serif KR", Georgia, "Times New Roman", serif;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #151515; --soft: #0b0b0b; --card: #1f1f1f;
+  --text: rgba(255,255,255,.93); --text-2: rgba(255,255,255,.57); --text-3: rgba(255,255,255,.4);
+  --line: rgba(255,255,255,.12); --shadow: none; --idle-bg: rgba(255,255,255,.06); --code-bg: #111;
+  --good: #53c556; --bad: #f17778; --watch: #e49c06; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #151515; --soft: #0b0b0b; --card: #1f1f1f;
+  --text: rgba(255,255,255,.93); --text-2: rgba(255,255,255,.57); --text-3: rgba(255,255,255,.4);
+  --line: rgba(255,255,255,.12); --shadow: none; --idle-bg: rgba(255,255,255,.06); --code-bg: #111;
+  --good: #53c556; --bad: #f17778; --watch: #e49c06; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 var(--sans); word-break: keep-all; overflow-wrap: anywhere; }
+main { max-width: 1180px; margin: 0 auto; padding: 0 16px 48px; }
+h1, h2 { font-family: var(--serif); font-weight: 400; margin: 0; text-wrap: balance; }
+h1 { font-size: 32px; line-height: 1.25; margin-top: 20px; }
+h2 { font-size: 22px; line-height: 1.3; margin-bottom: 14px; }
+.meta { font-size: 13px; color: var(--text-2); border-bottom: 1px solid var(--line); padding: 12px 0; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 20px; min-width: 0; }
+.num { font-size: 40px; font-weight: 500; line-height: 1; white-space: nowrap; }
+.pill { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: 13px; font-weight: 500; }
+.good { color: var(--good); background: var(--good-bg); } .bad { color: var(--bad); background: var(--bad-bg); } .watch { color: var(--watch); background: var(--watch-bg); }
+.clay { color: var(--clay-strong); background: var(--clay-bg); } .idle { color: var(--text-2); background: var(--idle-bg); }
+.ask { margin-top: 14px; padding: 14px 18px; border-left: 4px solid var(--clay); background: var(--clay-bg); border-radius: 10px; }
+.ask b { color: var(--clay-strong); }
+.warnbar { border-left-color: var(--bad); background: var(--bad-bg); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 18px; }
+.tile .lbl { font-size: 13px; color: var(--text-2); margin-bottom: 8px; }
+.tile .tag { font-size: 13px; color: var(--text-3); margin-top: 8px; }
+/* step path */
+.path { display: flex; flex-wrap: wrap; gap: 6px; margin: 22px 0 18px; padding: 0; list-style: none; }
+.path .step { flex: 1 1 120px; min-width: 0; }
+.path a { display: flex; gap: 8px; align-items: center; text-decoration: none; color: var(--text-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 14px; background: var(--card); }
+.path a .n { flex: 0 0 22px; height: 22px; border-radius: 50%; background: var(--idle-bg); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+.path .on a { border-color: var(--clay); color: var(--text); box-shadow: 0 0 0 2px var(--clay-bg); }
+.path .on a .n { background: var(--clay-strong); color: #fff; }
+.path .count { margin-left: auto; font-size: 12px; color: var(--text-3); }
+.nav { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; }
+button { font: 500 16px var(--sans); border-radius: 10px; padding: 10px 16px; cursor: pointer; background: var(--card); color: var(--text); border: 1px solid var(--line); }
+button.main { background: var(--clay-strong); color: #fff; border: 0; }
+button:disabled { opacity: .4; cursor: default; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+ul.items { list-style: none; padding: 0; margin: 0; }
+ul.items li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+ul.items li:last-child { border-bottom: 0; }
+.lbl2 { font-size: 13px; color: var(--text-2); font-weight: 600; margin-bottom: 8px; }
+.sid { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--clay-strong); margin-right: 6px; }
+.mono { font-family: var(--mono); font-size: 13px; }
+a { color: var(--clay-strong); }
+/* execution flow: nodes on the left, the selected node's code on the right */
+.flowwrap { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 760px) { .flowwrap { grid-template-columns: minmax(0, 1fr); } }
+.fnodes { list-style: none; padding: 0; margin: 0; position: relative; }
+.fnode { display: flex; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; margin-bottom: 8px; border-radius: 12px; font: 15px/1.4 var(--sans); }
+.fnode .n { flex: 0 0 24px; height: 24px; border-radius: 50%; background: var(--idle-bg); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+.where { display: block; font-family: var(--mono); font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.fnode.on { border-color: var(--clay); box-shadow: 0 0 0 2px var(--clay-bg); }
+.fnode.on .n { background: var(--clay-strong); color: #fff; }
+.codehead { font-family: var(--mono); font-size: 13px; color: var(--text-2); margin-bottom: 8px; }
+.code { background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 0; overflow-x: auto; font: 13px/1.6 var(--mono); }
+.code .row { display: flex; white-space: pre; }
+.code .ln { flex: 0 0 48px; text-align: right; padding-right: 12px; color: var(--text-3); user-select: none; }
+.code .src { padding-right: 16px; }
+.note { margin-top: 10px; }
+/* tables and bars */
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { border-bottom: 1px solid var(--line); padding: 9px 8px; text-align: left; vertical-align: top; }
+th { font-size: 13px; color: var(--text-2); font-weight: 600; }
+.bars { display: grid; gap: 10px; }
+.barrow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.barlabel { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
+.bartrack { display: flex; height: 10px; border-radius: 5px; background: var(--idle-bg); overflow: hidden; }
+.bar.add { background: var(--good); } .bar.del { background: var(--bad); }
+.qa { border-left: 3px solid var(--line); padding-left: 14px; margin-bottom: 16px; }
+.qa .q { font-weight: 600; }
+.qa .refs { margin-top: 4px; }
+/* where this PR sits in the feature */
+.lanes { display: grid; gap: 10px; }
+.lane-h { font-size: 13px; color: var(--text-2); font-weight: 600; margin-bottom: 6px; }
+.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.chip { border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; font-size: 13px; line-height: 1.35; max-width: 240px; text-decoration: none; color: var(--text); background: var(--card); }
+.chip.here { border-color: var(--clay); box-shadow: 0 0 0 2px var(--clay-bg); }
+.chip.done { border-color: var(--good); }
+.chip .cid { font-weight: 600; margin-right: 4px; }
+.chip .st { display: block; font-size: 12px; color: var(--text-3); }
+.sep { color: var(--text-3); }
+.rounds a, .rounds b { margin-left: 6px; }
+/* structure map: one row per layer, links drawn over it */
+.mapwrap { position: relative; }
+.mapwrap svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.layer { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; align-items: center; padding: 22px 0; border-bottom: 1px dashed var(--line); }
+.layer:last-of-type { border-bottom: 0; }
+.layer .lname { font-size: 13px; color: var(--text-2); font-weight: 600; }
+.layer .lnodes { display: flex; flex-wrap: wrap; gap: 28px; justify-content: space-around; }
+.mnode { position: relative; z-index: 1; text-align: left; padding: 8px 12px; border-radius: 12px; font: 14px/1.35 var(--sans); max-width: 240px; }
+.mnode.new { border: 2px solid var(--good); } .mnode.changed { border: 2px solid var(--clay); } .mnode.existing { border: 1.5px dashed var(--line); color: var(--text-2); }
+.mnode.on { box-shadow: 0 0 0 3px var(--clay-bg); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+/* per-file diff */
+.frow { width: 100%; text-align: left; padding: 8px 10px; border-radius: 10px; font: 14px/1.4 var(--sans); display: block; }
+.frow.on { border-color: var(--clay); box-shadow: 0 0 0 2px var(--clay-bg); }
+.code .row.add { background: var(--good-bg); } .code .row.del { background: var(--bad-bg); }
+.code .row.hunk { color: var(--text-3); background: var(--idle-bg); }
+.code .ln2 { flex: 0 0 44px; text-align: right; padding-right: 8px; color: var(--text-3); user-select: none; }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+/* Fixed renderer for one PR walkthrough. Never edit this file: the worker writes walkthroughs/<id>-w<n>.js, the hub
+   appends the review result and Q&A to it, and walkcheck.cjs writes <id>-w<n>.diff.js beside it. state.js (the hub's)
+   gives the PR's place in the feature. Open as walkthrough.html?w=<id>-w<n>#<step>. Everything is re-read every 5 s. */
+const POLL_MS = 5000;
+const STEPS = ["목적과 의도", "구조", "실행 흐름", "구현 방식", "시험", "위험과 리뷰", "질의응답"];
+const ST_KO = { todo: "대기", active: "작업 중", review: "리뷰 중", walk: "워크스루 대기", pr: "PR 열림", ready: "병합 준비됨", merged: "병합됨", blocked: "막힘" };
+const MAP_KO = { new: "새로 만든 것", changed: "고친 것", existing: "그대로 쓰는 것" };
+const ID_RE = /^[A-Za-z0-9_-]+-w\d+$/;
+const app = document.getElementById("app");
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const arr = x => Array.isArray(x) ? x : [];
+const id = new URLSearchParams(location.search).get("w") || "";
+let D = null, S = null, DIFF = null, broken = false, sel = 0, selNode = "", selFile = "", lastKey = "";
+
+const step = () => Math.min(Math.max(parseInt(location.hash.slice(1), 10) || 1, 1), STEPS.length);
+const go = n => { location.hash = "#" + Math.min(Math.max(n, 1), STEPS.length); };
+
+// Resolves the global the file assigns, null when the file loaded but did not assign it (syntax error), undefined when it is missing.
+function load(src, global) {
+  return new Promise(res => {
+    window[global] = undefined;
+    const s = document.createElement("script");
+    s.src = `${src}?t=${Date.now()}`;
+    s.onload = () => { s.remove(); res(window[global] ?? null); };
+    s.onerror = () => { s.remove(); res(undefined); };
+    document.head.appendChild(s);
+  });
+}
+
+const allItems = () => arr(S && S.lanes).flatMap(l => arr(l.items));
+const me = () => allItems().find(i => i.id === (D && D.item)) || null;
+const walkHref = (w, n) => ID_RE.test(String(w || "")) ? `walkthrough.html?w=${w}${n ? "#" + n : ""}` : "";
+const prLink = i => i && i.pr ? (/^https:\/\//.test(i.prUrl || "") ? `<a href="${esc(i.prUrl)}" target="_blank" rel="noopener">PR #${esc(i.pr)}</a>` : `PR #${esc(i.pr)}`) : "";
+
+function codeBlock(f) {
+  const start = Number(f.line) || 1;
+  const rows = String(f.code ?? "").replace(/\n$/, "").split("\n")
+    .map((l, k) => `<div class="row"><span class="ln">${start + k}</span><span class="src">${esc(l)}</span></div>`).join("");
+  return `<div class="codehead">${esc(f.file)}:${esc(start)}</div><div class="code">${rows}</div>`;
+}
+const where = f => f.file ? `<span class="where">${esc(f.file)}${f.line ? ":" + esc(f.line) : ""}</span>` : "";
+
+// What the developer should do with this page now, from the item's state in state.js.
+function banner() {
+  const i = me(), owner = `<b>${esc(D.owner)}</b>님: `;
+  const merged = i && i.status === "merged";
+  const latest = i && i.walkthrough && i.walkthrough !== id && walkHref(i.walkthrough) ? ` <a href="${walkHref(i.walkthrough)}">최신 회차 보기</a>` : "";
+  if (i && i.walkApproved === id)
+    return `<div class="ask">이 회차를 승인했습니다. ${prLink(i)} ${merged ? "병합됨." : ""}${latest ? ` 승인 뒤 코드가 바뀌었습니다.${latest}` : " 궁금한 점은 언제든 허브 대화에서 물어보세요."}</div>`;
+  if (latest) return `<div class="ask">이전 회차입니다.${latest}</div>`;
+  if (D.afterApproval)
+    return merged ? `<div class="ask">워크스루 승인 뒤 바뀐 코드를 보여 주는 회차입니다. ${prLink(i)} 병합됨.</div>`
+      : `<div class="ask warnbar">${owner}워크스루를 승인한 뒤 코드가 바뀌었습니다. 1단계의 "승인 뒤 바뀐 코드"를 보고 병합 승인 때 함께 판단해 주세요. ${prLink(i)}</div>`;
+  if (i && i.status === "walk")
+    return `<div class="ask">${owner}일곱 단계를 보고 허브 대화에서 질문하거나, 이해했으면 <b>"PR 올려"</b> 로 승인해 주세요. ${i.pr ? `${prLink(i)} 은 이미 열려 있고, 승인 전에는 병합하지 않습니다.` : "승인 전에는 PR 이 만들어지지 않습니다."}</div>`;
+  return `<div class="ask">독립 리뷰를 통과하면 허브가 이 문서로 설명하고 PR 생성 승인을 요청합니다.</div>`;
+}
+
+function changeItem(c) {
+  if (typeof c === "string") return `<li>${esc(c)}</li>`;
+  return `<li><b>${esc(c.what)}</b>${c.removed ? ` <span class="pill bad">삭제</span>` : ""}${where(c)}${c.why ? `<div style="color:var(--text-2)">${esc(c.why)}</div>` : ""}</li>`;
+}
+
+function position() {
+  const lanes = arr(S && S.lanes).filter(l => arr(l.items).length);
+  if (!lanes.length) return "";
+  return `<div class="card" style="margin-top:12px"><div class="lbl2">전체 기능에서 이 PR 의 자리${S.title ? `: ${esc(S.title)}` : ""}</div><div class="lanes">${lanes.map(l => `<div><div class="lane-h">${esc(l.name)}</div><div class="chips">${arr(l.items).map(i => {
+    const href = i.id === D.item ? "" : walkHref(i.walkthrough);
+    const cls = `chip${i.id === D.item ? " here" : ""}${i.status === "merged" ? " done" : ""}`;
+    const inner = `<span class="cid">${esc(i.id)}</span>${esc(i.title)}<span class="st">${esc(ST_KO[i.status] || "대기")}${i.pr ? ` · #${esc(i.pr)}` : ""}${href ? " · 워크스루 보기" : ""}</span>`;
+    return href ? `<a class="${cls}" href="${href}">${inner}</a>` : `<span class="${cls}">${inner}</span>`;
+  }).join('<span class="sep">→</span>')}</div></div>`).join("")}</div></div>`;
+}
+
+function stepPurpose() {
+  const p = D.purpose || {};
+  const changes = arr(D.changes);
+  return `
+${changes.length ? `<div class="card" style="margin-bottom:12px"><div class="lbl2">${D.afterApproval ? "승인 뒤 바뀐 코드" : `${esc((D.round || 2) - 1)}회차 이후 바뀐 것`}</div><ul class="items">${changes.map(changeItem).join("")}</ul></div>` : ""}
+<div class="grid2">
+  <div class="card"><div class="lbl2">이 PR 이 구현하는 명세</div><ul class="items">${arr(p.spec).map(s => `<li><span class="sid">${esc(s.id)}</span>${esc(s.text)}</li>`).join("")}</ul></div>
+  <div class="card"><div class="lbl2">왜 필요한가</div><p style="margin:0 0 12px"><b>${esc(p.why)}</b></p>
+    <div class="lbl2">병합 뒤 달라지는 것</div><p style="margin:0 0 12px">${esc(p.after)}</p>
+    ${arr(p.notHere).length ? `<div class="lbl2">다른 PR 이 맡는 것</div><ul class="items">${arr(p.notHere).map(n => `<li><b>${esc(n.item)}</b> ${esc(n.what)}</li>`).join("")}</ul>` : ""}</div>
+</div>${position()}`;
+}
+
+function stepMap() {
+  const m = D.map || {}, nodes = arr(m.nodes), links = arr(m.links);
+  if (!nodes.length) return `<div class="card">${D.map ? "구조 변화 없음" : "이 회차에는 구조 지도가 없습니다."}</div>`;
+  const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+  if (!byId[selNode]) selNode = (nodes.find(n => n.state !== "existing") || nodes[0]).id;
+  const n = byId[selNode];
+  const role = (arr(D.files).find(f => f.path === n.file) || {}).role;
+  const rel = links.filter(l => l.from === n.id || l.to === n.id);
+  return `
+<div class="card"><div class="mapwrap" id="map"><svg id="wires"></svg>${arr(m.layers).map(L => `<div class="layer"><div class="lname">${esc(L)}</div><div class="lnodes">${nodes.filter(x => x.layer === L).map(x => `<button class="mnode ${esc(x.state)}${x.id === selNode ? " on" : ""}" data-n="${esc(x.id)}">${esc(x.label)}</button>`).join("")}</div></div>`).join("")}</div>
+<div class="legend"><span class="pill good">${MAP_KO.new}</span><span class="pill clay">${MAP_KO.changed}</span><span class="pill idle">${MAP_KO.existing}</span></div></div>
+<div class="card" style="margin-top:12px"><div class="lbl2">${esc(MAP_KO[n.state] || "")}</div><b>${esc(n.label)}</b>${where(n)}${role ? `<div>${esc(role)}</div>` : ""}
+  ${rel.length ? `<ul class="items" style="margin-top:8px">${rel.map(l => `<li>${esc((byId[l.from] || {}).label)} → ${esc((byId[l.to] || {}).label)}${l.label ? `<div style="color:var(--text-2)">${esc(l.label)}</div>` : ""}</li>`).join("")}</ul>` : ""}</div>`;
+}
+
+// Draws one arrow per link over the map, from the box positions the browser laid out.
+function wire() {
+  const box = document.getElementById("map"), svg = document.getElementById("wires");
+  if (!box || !svg) return;
+  const o = box.getBoundingClientRect();
+  const at = nid => { const el = box.querySelector(`[data-n="${CSS.escape(nid)}"]`); return el ? el.getBoundingClientRect() : null; };
+  const lines = arr(D.map && D.map.links).map(l => {
+    const a = at(l.from), b = at(l.to);
+    if (!a || !b) return "";
+    const hot = l.from === selNode || l.to === selNode;
+    let x1 = a.left + a.width / 2, y1, x2 = b.left + b.width / 2, y2;
+    if (Math.abs(a.top - b.top) < 8) { y1 = y2 = a.top + a.height / 2; x1 = a.left < b.left ? a.right : a.left; x2 = a.left < b.left ? b.left : b.right; }
+    else if (a.top < b.top) { y1 = a.bottom; y2 = b.top; } else { y1 = a.top; y2 = b.bottom; }
+    return `<line x1="${x1 - o.left}" y1="${y1 - o.top}" x2="${x2 - o.left}" y2="${y2 - o.top}" stroke="${hot ? "var(--clay-strong)" : "var(--text-3)"}" stroke-width="${hot ? 2 : 1.2}" marker-end="url(#${hot ? "ah" : "a"})"/>`;
+  }).join("");
+  const head = (k, c) => `<marker id="${k}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${c}"/></marker>`;
+  svg.innerHTML = `<defs>${head("a", "var(--text-3)")}${head("ah", "var(--clay-strong)")}</defs>${lines}`;
+}
+
+function stepFlow() {
+  const flow = arr(D.flow);
+  if (!flow.length) return `<div class="card">동작 변화 없음</div>`;
+  if (sel >= flow.length) sel = 0;
+  const f = flow[sel];
+  const edges = arr(D.edges);
+  return `
+<div class="flowwrap">
+  <ol class="fnodes">${flow.map((x, k) => `<li><button class="fnode${k === sel ? " on" : ""}" data-k="${k}"><span class="n">${k + 1}</span><span>${esc(x.title)}${where(x)}</span></button></li>`).join("")}</ol>
+  <div class="card">${f.file && f.code ? codeBlock(f) : ""}${f.note ? `<p class="note">${esc(f.note)}</p>` : ""}</div>
+</div>
+${edges.length ? `<div class="grid2" style="margin-top:12px">${edges.map(e => `<div class="card"><div class="lbl2">${esc(e.name)}</div><ul class="items">${arr(e.steps).map(s => `<li>${esc(s.title)}${where(s)}</li>`).join("")}</ul></div>`).join("")}</div>` : ""}`;
+}
+
+function diffBlock(path) {
+  const stale = DIFF && D.head && DIFF.head && !String(D.head).startsWith(DIFF.head) && !String(DIFF.head).startsWith(D.head);
+  const f = DIFF && !stale ? arr(DIFF.files).find(x => x.path === path) : null;
+  if (!f) return `<p style="color:var(--text-2)">${D.map === undefined ? "이전 형식의 회차라 변경 내용이 없습니다. PR 화면에서 보세요." : "이 파일의 변경 내용을 아직 만들지 않았습니다. 허브가 walkcheck 를 돌리면 나타납니다."}</p>`;
+  if (f.omitted) return `<p style="color:var(--text-2)">변경이 ${esc(f.omitted)}줄이라 여기서는 생략합니다. PR 화면에서 보세요.</p>`;
+  if (!f.lines) return `<p style="color:var(--text-2)">${f.note === "binary" ? "글자가 아닌 파일이라 내용을 보여 줄 수 없습니다." : "내용은 그대로이고 파일 속성만 바뀌었습니다."}</p>`;
+  let a = 0, b = 0;
+  const rows = f.lines.map(l => {
+    const h = l.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    if (h) { a = Number(h[1]); b = Number(h[2]); return `<div class="row hunk"><span class="ln2"></span><span class="ln2"></span><span class="src">${esc(l)}</span></div>`; }
+    if (l[0] === "\\") return "";
+    const cls = l[0] === "+" ? " add" : l[0] === "-" ? " del" : "";
+    const la = l[0] === "+" ? "" : a++, lb = l[0] === "-" ? "" : b++;
+    return `<div class="row${cls}"><span class="ln2">${la}</span><span class="ln2">${lb}</span><span class="src">${esc(l)}</span></div>`;
+  }).join("");
+  return `<div class="code">${rows}</div>`;
+}
+
+function stepDesign() {
+  const files = arr(D.files);
+  const max = Math.max(1, ...files.map(f => (Number(f.added) || 0) + (Number(f.removed) || 0)));
+  const data = arr(D.data);
+  if (!files.some(f => f.path === selFile)) selFile = files.length ? files[0].path : "";
+  return `
+<div class="grid2">
+  <div class="card"><div class="lbl2">이렇게 만든 이유</div><ul class="items">${arr(D.design).map(d => `<li><b>${esc(d.decision)}</b><div>${esc(d.why)}</div>${d.rejected ? `<div style="color:var(--text-2)">택하지 않은 안: ${esc(d.rejected)}</div>` : ""}${d.rule ? `<div class="mono">${esc(d.rule)}</div>` : ""}</li>`).join("") || "<li>없음</li>"}</ul>
+  ${data.length ? `<div class="lbl2" style="margin-top:14px">새로 저장하는 것</div><ul class="items">${data.map(d => `<li><span class="mono">${esc(d.table)}${d.column ? "." + esc(d.column) : ""}</span> ${esc(d.stores)}${d.safe ? `<div style="color:var(--text-2)">배포된 코드와 함께 안전한 이유: ${esc(d.safe)}</div>` : ""}</li>`).join("")}</ul>` : ""}</div>
+  <div class="card"><div class="lbl2">바뀐 파일 ${files.length}개 (누르면 아래에 변경 내용이 나옵니다)</div><div class="bars">${files.map(f => {
+    const a = Number(f.added) || 0, r = Number(f.removed) || 0;
+    return `<button class="frow${f.path === selFile ? " on" : ""}" data-f="${esc(f.path)}"><div class="barlabel"><span><span class="mono">${esc(f.path)}</span> ${esc(f.role)}</span><span class="mono" style="white-space:nowrap">+${a} −${r}</span></div><div class="bartrack"><span class="bar add" style="width:${a / max * 100}%"></span><span class="bar del" style="width:${r / max * 100}%"></span></div></button>`;
+  }).join("")}</div></div>
+</div>
+${selFile ? `<div class="card" style="margin-top:12px"><div class="codehead">${esc(selFile)} 의 변경 내용 (초록은 추가, 빨강은 삭제)</div>${diffBlock(selFile)}</div>` : ""}`;
+}
+
+function stepTests() {
+  const v = D.verify || {};
+  return `
+<div class="card"><div class="tablewrap"><table><thead><tr><th>명세</th><th>시험</th><th>확인하는 것</th><th>구현 전 실패</th></tr></thead><tbody>
+${arr(D.tests).map(t => `<tr><td><span class="sid">${esc(t.spec)}</span></td><td>${esc(t.test)}<div class="mono" style="color:var(--text-3)">${esc(t.file)}:${esc(t.line)}</div></td><td class="mono">${esc(t.asserts)}</td><td class="mono" style="color:var(--bad)">${esc(t.red)}</td></tr>`).join("")}
+</tbody></table></div></div>
+<div class="grid2" style="margin-top:12px">
+  <div class="card"><div class="lbl2">일부러 고장 낸 실험</div><ul class="items">${arr(D.injections).map(i => `<li><b>${esc(i.broke)}</b> → ${arr(i.red).map(r => `<span class="pill bad">${esc(r)} 실패</span>`).join(" ")}</li>`).join("") || "<li>없음</li>"}</ul></div>
+  <div class="card"><div class="lbl2">최종 머리에서 돌린 전체 검증</div><div class="mono">${esc(v.command)}</div><p style="margin:8px 0 0"><span class="pill good">${esc(v.summary)}</span></p></div>
+</div>`;
+}
+
+function stepRisks() {
+  const list = (lbl, xs, f) => `<div class="card"><div class="lbl2">${lbl}</div><ul class="items">${xs.length ? xs.map(f).join("") : "<li>없음</li>"}</ul></div>`;
+  const reviews = arr(D.review);
+  return `<div class="grid2">
+  ${list("위험한 곳과 막는 장치", arr(D.risks), r => `<li><span class="pill watch">${esc(r.area)}</span> ${esc(r.guard)}</li>`)}
+  ${list("확인하지 못한 것", arr(D.unverified), u => `<li>${esc(u)}</li>`)}
+  ${arr(D.followups).length ? list("후속 작업", arr(D.followups), u => `<li>${esc(u)}</li>`) : ""}
+</div>
+<div class="card" style="margin-top:12px"><div class="lbl2">독립 리뷰 (이 코드를 쓰지 않은 리뷰어가 본 결과)</div>${reviews.length ? reviews.map(r => `<div style="margin-bottom:12px"><span class="pill ${r.verdict === "PASS" ? "good" : "watch"}">${esc(r.round)}회차 ${r.verdict === "PASS" ? "통과" : "수정 요청"}</span> <span class="mono">${esc(r.head)}</span>
+  <ul class="items">${arr(r.findings).map(f => `<li><span class="pill ${f.level === "blocking" ? "bad" : "idle"}">${f.level === "blocking" ? "고쳐야 함" : "참고"}</span> ${esc(f.what)}${where(f)}${f.fix ? `<div style="color:var(--text-2)">처리: ${esc(f.fix)}</div>` : ""}</li>`).join("") || "<li>지적 없음</li>"}</ul></div>`).join("") : "아직 리뷰 결과가 없습니다."}</div>`;
+}
+
+function stepQa() {
+  const qa = arr(D.qa);
+  if (!qa.length) return `<div class="card">아직 질문이 없습니다. 허브 대화에서 무엇이든 물어보세요.</div>`;
+  return `<div class="card">${qa.map(x => `<div class="qa"><div class="q">${esc(x.q)}</div><div>${esc(x.a)}</div>${arr(x.refs).length ? `<div class="refs">${arr(x.refs).map(r => `<span class="mono">${esc(r)}</span>`).join(" · ")}</div>` : ""}</div>`).join("")}</div>`;
+}
+
+function render() {
+  if (!ID_RE.test(id)) { app.innerHTML = `<div class="ask warnbar">주소가 올바르지 않습니다. walkthrough.html?w=&lt;작업 id&gt;-w&lt;회차&gt; 로 여세요.</div>`; return; }
+  if (!D) { app.innerHTML = `<div class="ask warnbar">walkthroughs/${esc(id)}.js 를 읽지 못했습니다. 파일이 있는지, 문법 오류가 없는지 확인하세요.</div>`; return; }
+  const n = step();
+  document.title = `${D.item} 워크스루 ${D.round}회차`;
+  const files = arr(D.files);
+  const added = files.reduce((s, f) => s + (Number(f.added) || 0), 0), removed = files.reduce((s, f) => s + (Number(f.removed) || 0), 0);
+  const i = me();
+  const latest = Math.max(Number(D.round) || 1, i && ID_RE.test(String(i.walkthrough || "")) ? Number(String(i.walkthrough).split("-w").pop()) : 0);
+  const rounds = latest > 1 ? `<span class="rounds">회차${Array.from({ length: latest }, (_, k) => k + 1 === Number(D.round) ? `<b>${k + 1}</b>` : `<a href="walkthrough.html?w=${esc(D.item)}-w${k + 1}">${k + 1}</a>`).join("")}</span>` : "";
+  const reviews = arr(D.review), lastReview = reviews[reviews.length - 1];
+  const counts = [null, arr(D.map && D.map.nodes).length, arr(D.flow).length, files.length, arr(D.tests).length, arr(D.risks).length, arr(D.qa).length];
+  const body = [stepPurpose, stepMap, stepFlow, stepDesign, stepTests, stepRisks, stepQa][n - 1]();
+  app.innerHTML = `
+<div class="meta"><span><a href="dashboard.html">← 진행 현황</a> · PR 워크스루 · ${esc(D.item)} ${esc(D.round)}회차 · ${esc(D.worker)} → ${esc(D.owner)} · ${esc(D.date)}${rounds}</span><span class="mono">${esc(D.branch)} @ ${esc(D.head)} · base ${esc(D.base)} ${esc(D.baseSha)}</span></div>
+${broken ? `<div class="ask warnbar">데이터 파일을 읽지 못했습니다(문법 오류). 마지막으로 읽은 내용을 보여 줍니다.</div>` : ""}
+<h1>${esc(D.title)}</h1>
+${banner()}
+<div class="tiles">
+  <div class="card tile"><div class="lbl">바뀐 파일</div><div class="num">${files.length}개</div></div>
+  <div class="card tile"><div class="lbl">추가한 줄</div><div class="num">+${added}</div><div class="tag">삭제 ${removed}줄</div></div>
+  <div class="card tile"><div class="lbl">명세를 증명하는 시험</div><div class="num">${arr(D.tests).length}개</div></div>
+  <div class="card tile"><div class="lbl">독립 리뷰</div><div class="num">${lastReview ? (lastReview.verdict === "PASS" ? "통과" : "수정 중") : "대기"}</div>${lastReview ? `<div class="tag">${esc(lastReview.round)}회차</div>` : ""}</div>
+</div>
+<ol class="path">${STEPS.map((s, k) => `<li class="step${k + 1 === n ? " on" : ""}"><a href="#${k + 1}"><span class="n">${k + 1}</span><span class="name">${s}</span>${counts[k] ? `<span class="count">${counts[k]}</span>` : ""}</a></li>`).join("")}</ol>
+<h2>${n}. ${STEPS[n - 1]}</h2>
+${body}
+<div class="nav"><button id="prev" ${n === 1 ? "disabled" : ""}>← 이전</button><button id="next" class="main" ${n === STEPS.length ? "disabled" : ""}>다음: ${STEPS[n] ? esc(STEPS[n]) : "끝"} →</button></div>`;
+  document.getElementById("prev").onclick = () => go(n - 1);
+  document.getElementById("next").onclick = () => go(n + 1);
+  app.querySelectorAll(".fnode").forEach(b => b.onclick = () => { sel = Number(b.dataset.k); render(); });
+  app.querySelectorAll(".mnode").forEach(b => b.onclick = () => { selNode = b.dataset.n; render(); });
+  app.querySelectorAll(".frow").forEach(b => b.onclick = () => { selFile = b.dataset.f; render(); });
+  wire();
+}
+
+async function tick() {
+  if (ID_RE.test(id)) {
+    const d = await load(`walkthroughs/${id}.js`, "HUB_WALK");
+    if (d) { D = d; broken = false; } else if (d === null && D) broken = true;
+    const x = await load(`walkthroughs/${id}.diff.js`, "HUB_DIFF");
+    if (x) DIFF = x;
+    const s = await load("state.js", "HUB_STATE");
+    if (s) S = s;
+  }
+  const key = JSON.stringify([D, broken, DIFF && DIFF.head, S && S.title, allItems().map(i => [i.id, i.title, i.status, i.pr, i.walkthrough, i.walkApproved])]);
+  if (key !== lastKey) { lastKey = key; render(); }
+}
+window.addEventListener("hashchange", () => { sel = 0; render(); window.scrollTo(0, 0); });
+window.addEventListener("resize", wire);
+document.addEventListener("keydown", e => {
+  if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  if (e.key === "ArrowRight") go(step() + 1);
+  if (e.key === "ArrowLeft") go(step() - 1);
+});
+tick();
+setInterval(tick, POLL_MS);
+</script>
+</body>
+</html>

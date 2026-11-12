@@ -1,0 +1,6 @@
+interface:
+  display_name: "Orca Hub"
+  short_description: "Build a discussed feature as PRs through Orca workers, with walkthroughs and a live dashboard"
+  default_prompt: "Use $orca-hub to build the feature we just discussed as PRs through Orca workers."
+policy:
+  allow_implicit_invocation: false
