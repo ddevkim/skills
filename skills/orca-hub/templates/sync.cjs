@@ -207,7 +207,9 @@ async function syncOnce(withGh) {
 
 function alive(pid) { try { process.kill(pid, 0); return true; } catch (e) { return e.code === "EPERM"; } }
 
-if (process.argv.includes("--once")) {
+if (require.main !== module) {
+  module.exports = { notes }; // loaded by tests: export the pure function, start nothing
+} else if (process.argv.includes("--once")) {
   syncOnce(true).then(() => process.exit(0));
 } else {
   const other = fs.existsSync(PID) ? Number(fs.readFileSync(PID, "utf8").trim()) : 0;
