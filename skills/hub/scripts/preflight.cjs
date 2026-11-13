@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 "use strict";
-// Checks what a new orca-hub needs before it starts. Installs nothing.
+// Checks what a new Vera hub needs before it starts. Installs nothing.
 // Prints one "ok:" line and exits 0, or one "missing:" line per failed check and exits 1.
 const { spawnSync } = require("node:child_process");
 

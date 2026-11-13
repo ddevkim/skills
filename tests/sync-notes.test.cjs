@@ -6,7 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
-const SYNC = path.join(__dirname, "..", "skills", "orca-hub", "templates", "sync.cjs");
+const SYNC = path.join(__dirname, "..", "skills", "hub", "templates", "sync.cjs");
 
 // A copy in an empty folder: if loading it started the loop, it would write sync.pid there and exit, not touch templates/.
 function loadInEmptyFolder() {

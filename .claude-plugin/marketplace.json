@@ -1,14 +1,14 @@
 {
-  "name": "ddevkim-skills",
+  "name": "vera",
   "owner": {
     "name": "ddevkim"
   },
   "metadata": {
-    "description": "Agent skills by ddevkim"
+    "description": "Vera: agent skills by ddevkim for work that is verified before it is called done"
   },
   "plugins": [
     {
-      "name": "orca-hub",
+      "name": "vera",
       "source": "./",
       "description": "Build a discussed feature as PRs through Orca worker sessions, with walkthroughs and a live dashboard"
     }

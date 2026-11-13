@@ -8,7 +8,7 @@ const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
 const ROOT = path.join(__dirname, "..");
-const REL = "skills/orca-hub/templates/walkthrough.html";
+const REL = "skills/hub/templates/walkthrough.html";
 const HANGUL = /[ᄀ-ᇿ㄰-㆏가-힯]/;
 const NOW = Date.parse("2026-11-13T12:00:00Z");
 
@@ -179,7 +179,7 @@ test("C5 the page script has no Korean literal outside the ko table", () => {
 });
 
 test("the PR stage label matches the dashboard's stage strip in both languages", async () => {
-  const dash = fs.readFileSync(path.join(ROOT, "skills/orca-hub/templates/dashboard.html"), "utf8");
+  const dash = fs.readFileSync(path.join(ROOT, "skills/hub/templates/dashboard.html"), "utf8");
   const ctx = { document: { getElementById: () => ({}) } };
   vm.createContext(ctx);
   const src = scriptOf(dash);

@@ -55,7 +55,7 @@ test("marketplace manifest has its required fields", () => {
   }
 });
 
-test("every marketplace source holds a plugin manifest and the orca-hub skill", () => {
+test("every marketplace source holds a plugin manifest and the hub skill", () => {
   const m = readJson(".claude-plugin/marketplace.json");
   const served = [];
   for (const p of m.plugins) {
@@ -67,7 +67,7 @@ test("every marketplace source holds a plugin manifest and the orca-hub skill", 
     dirs.forEach((d) => assertSkillDir(d, `plugin ${p.name}`));
     served.push(...dirs.map((d) => path.basename(d)));
   }
-  assert.ok(served.includes("orca-hub"), "no plugin serves the orca-hub skill");
+  assert.ok(served.includes("hub"), "no plugin serves the hub skill");
 });
 
 test("plugin manifest has its required fields", () => {
@@ -80,6 +80,17 @@ test("plugin manifest has its required fields", () => {
   assert.strictEqual(p.license, "MIT");
 });
 
+test("the marketplace and its plugin are both named vera, at the vera repo", () => {
+  const m = readJson(".claude-plugin/marketplace.json");
+  const p = readJson(".claude-plugin/plugin.json");
+  assert.strictEqual(m.name, "vera");
+  assert.deepStrictEqual(m.plugins.map((e) => e.name), ["vera"]);
+  assert.match(m.metadata.description, /Vera/);
+  assert.strictEqual(p.name, "vera");
+  assert.strictEqual(p.homepage, "https://github.com/ddevkim/vera");
+  assert.strictEqual(p.repository, "https://github.com/ddevkim/vera");
+});
+
 test("the repo states an MIT license", () => {
   const file = path.join(root, "LICENSE");
   assert.ok(fs.existsSync(file), "LICENSE is missing");
@@ -88,7 +99,9 @@ test("the repo states an MIT license", () => {
   assert.match(text, /Copyright \(c\) 2026 ddevkim/);
 });
 
-test("orca-hub stays direct-invocation only on Codex", () => {
-  const yaml = fs.readFileSync(path.join(root, "skills/orca-hub/agents/openai.yaml"), "utf8");
+test("hub stays direct-invocation only on Codex", () => {
+  const yaml = fs.readFileSync(path.join(root, "skills/hub/agents/openai.yaml"), "utf8");
   assert.match(yaml, /^\s*allow_implicit_invocation: false\s*$/m);
+  assert.match(yaml, /^\s*display_name: "Vera Hub"\s*$/m);
+  assert.match(yaml, /^\s*default_prompt: "Use \$hub to /m);
 });

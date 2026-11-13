@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const SCRIPT = path.join(__dirname, "..", "skills", "orca-hub", "scripts", "allow.cjs");
+const SCRIPT = path.join(__dirname, "..", "skills", "hub", "scripts", "allow.cjs");
 
 // A temp root holding a fresh git repo (the worktree), an empty HOME, and an empty Claude config dir.
 function lab() {
@@ -174,7 +174,7 @@ test("skips a half whose file git tracks, so git add -A never commits the rules"
 
 test("skips the half with a dangling symlink at any path it writes, creates nothing at its target, and writes the other half", () => {
   for (const rel of [".claude", ".claude/settings.local.json", ".claude/.gitignore", ".codex", ".codex/rules",
-    ".codex/rules/orca-hub.rules", ".codex/.gitignore"]) {
+    ".codex/rules/vera-hub.rules", ".codex/.gitignore"]) {
     const l = lab();
     const target = path.join(l.root, "away");
     const link = path.join(l.wt, rel);
@@ -334,7 +334,7 @@ test("a gh pr create to another repo asks, and --base still runs", () => {
 // A model of Codex's prefix_rule matching (not its real matcher): each pattern position is a literal or a list of
 // alternatives, a rule matches any command that starts with its pattern, and the most restrictive decision wins.
 const RANK = { allow: 1, prompt: 2, forbidden: 3 };
-const codexFiles = (wt) => ({ dir: path.join(wt, ".codex"), rules: path.join(wt, ".codex", "rules", "orca-hub.rules"),
+const codexFiles = (wt) => ({ dir: path.join(wt, ".codex"), rules: path.join(wt, ".codex", "rules", "vera-hub.rules"),
   ignore: path.join(wt, ".codex", ".gitignore") });
 function codexRules(text) {
   return [...text.matchAll(/prefix_rule\(([\s\S]*?)\n\)/g)].map(([, body]) => {
@@ -527,7 +527,7 @@ test("skips the Codex rules when they would show in git and the repo owns .codex
   assert.strictEqual(l.run("check", l.wt).code, 0);
 });
 
-test("remove puts back an orca-hub.rules that was there before, byte for byte", () => {
+test("remove puts back a vera-hub.rules that was there before, byte for byte", () => {
   const l = lab();
   const c = codexFiles(l.wt);
   fs.mkdirSync(path.dirname(c.rules), { recursive: true });
@@ -539,7 +539,7 @@ test("remove puts back an orca-hub.rules that was there before, byte for byte", 
   assert.strictEqual(fs.readFileSync(c.rules, "utf8"), original);
 });
 
-test("remove puts back a recorded orca-hub.rules even after .codex was deleted", () => {
+test("remove puts back a recorded vera-hub.rules even after .codex was deleted", () => {
   const l = lab();
   const c = codexFiles(l.wt);
   fs.mkdirSync(path.dirname(c.rules), { recursive: true });
@@ -552,6 +552,15 @@ test("remove puts back a recorded orca-hub.rules even after .codex was deleted",
   assert.strictEqual(l.run("check", l.wt).code, 0);
 });
 
+test("write keeps its record as vera-hub-allow.json in the worktree's git dir, and remove deletes it", () => {
+  const l = lab();
+  const record = path.join(l.wt, ".git", "vera-hub-allow.json");
+  assert.strictEqual(l.run("write", l.wt, "medium").code, 0);
+  assert.ok(fs.existsSync(record), "no vera-hub-allow.json after write");
+  assert.strictEqual(l.run("remove", l.wt).code, 0);
+  assert.ok(!fs.existsSync(record), "remove left vera-hub-allow.json");
+});
+
 test("remove keeps a .codex the repo had, and check names the Codex files while they exist", () => {
   const l = lab();
   const c = codexFiles(l.wt);
@@ -561,7 +570,7 @@ test("remove keeps a .codex the repo had, and check names the Codex files while 
   assert.strictEqual(l.run("write", l.wt, "high").code, 0);
   const found = l.run("check", l.wt);
   assert.notStrictEqual(found.code, 0);
-  assert.match(found.out, /orca-hub\.rules/);
+  assert.match(found.out, /vera-hub\.rules/);
   assert.match(found.out, /\.codex\/\.gitignore/);
   assert.strictEqual(l.run("remove", l.wt).code, 0);
   assert.deepStrictEqual(snapshot(l.wt, (p) => p.endsWith(".git")), before);

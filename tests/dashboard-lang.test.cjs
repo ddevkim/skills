@@ -8,7 +8,7 @@ const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
 const ROOT = path.join(__dirname, "..");
-const REL = "skills/orca-hub/templates/dashboard.html";
+const REL = "skills/hub/templates/dashboard.html";
 const HANGUL = /[ᄀ-ᇿ㄰-㆏가-힯]/;
 const NOW = Date.parse("2026-11-13T12:00:00Z");
 const ago = min => new Date(NOW - min * 60000).toISOString();
@@ -281,7 +281,7 @@ test("C11 decisions the hub took alone are listed under their own heading", asyn
 });
 
 test("C11 the template state.js starts at low and shows a decision the hub took alone", () => {
-  const src = fs.readFileSync(path.join(ROOT, "skills/orca-hub/templates/state.js"), "utf8");
+  const src = fs.readFileSync(path.join(ROOT, "skills/hub/templates/state.js"), "utf8");
   const ctx = {}; ctx.window = ctx;
   vm.runInNewContext(src, ctx);
   assert.strictEqual(ctx.HUB_STATE.autonomy, "low");
