@@ -1,6 +1,6 @@
 interface:
   display_name: "Vera Hub"
   short_description: "Build a discussed feature as PRs through Orca workers, with walkthroughs and a live dashboard"
-  default_prompt: "Use $hub to build the feature we just discussed as PRs through Orca workers."
+  default_prompt: "Use $vera:hub to build the feature we just discussed as PRs through Orca workers."
 policy:
   allow_implicit_invocation: false

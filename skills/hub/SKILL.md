@@ -1,7 +1,7 @@
 ---
 name: hub
 disable-model-invocation: true
-description: Use when the developer invokes /vera:hub or $hub to have a feature discussed in this conversation built as PRs by Orca worker sessions, or asks you to resume such a hub (its worker sessions and progress dashboard) after a break, compaction, or new session.
+description: Use when the developer invokes /vera:hub or $vera:hub to have a feature discussed in this conversation built as PRs by Orca worker sessions, or asks you to resume such a hub (its worker sessions and progress dashboard) after a break, compaction, or new session.
 ---
 
 # Vera hub
