@@ -182,11 +182,17 @@ test("state.js carries hubWorktreeOldName beside hubWorktree, empty by default",
   assert.strictEqual(keys.indexOf("hubWorktreeOldName"), keys.indexOf("hubWorktree") + 1);
 });
 
+const autonomy0 = () => section(read(path.join(skillDir, "SKILL.md")), "Autonomy levels");
+
 test("the push rules name their exact forms and the allow list names its limits", () => {
   const protocol = read(path.join(refDir, "worker-spec.md"));
   const rule = (n) => protocol.split("\n").find((l) => l.startsWith(`${n}. `)) || "";
   assert.match(rule(11), /Push \(`git push`\)/, "rule 11 does not name the push form");
   assert.match(rule(13), /upstream/, "rule 13 does not say the bare push needs the upstream set first");
+  assert.match(rule(13), /`\+<ref>` are asked or refused/, "rule 13 must say other push forms are asked or refused");
+  assert.match(rule(13), /unless <the developer>'s own settings ask/, "rule 13 must not promise no prompt unconditionally");
+  assert.match(autonomy0(), /ask and deny rules outrank allow from any settings file/, "the allow list must say user ask or deny rules still prompt");
+  assert.match(autonomy0(), /never edits user settings/);
   const autonomy = section(read(path.join(skillDir, "SKILL.md")), "Autonomy levels");
   assert.match(autonomy, /`\+<ref>` are asked or refused/);
   assert.doesNotMatch(autonomy, /`\+<ref>` are refused/);
@@ -206,7 +212,7 @@ test("the hub records whether the parent's name was automatic and asks when it c
   assert.match(start, /rename it again when its name differs from the hub's/, "resume leaves an unrenamed parent");
   const closing = section(read(path.join(refDir, "cleanup.md")), "Closing the hub");
   assert.match(closing, /no command returns a workspace to its automatic name/, "the close hides that an automatic name comes back fixed");
-  assert.match(closing, /`hubWorktreeOldNameMode` is "" but the parent still carries the hub's name: ask the developer which name to give back/);
+  assert.match(closing, /Otherwise, if the parent still carries the hub's name: ask the developer which name to give back/);
   assert.match(closing, /`--workspace-status`/, "the close does not say what happens to the parent's board status");
   assert.match(read(path.join(refDir, "upgrade.md")), /an existing `hubWorktree` is kept/);
 });
@@ -223,5 +229,14 @@ test("step 5 reads and records the parent's name in one edit before it renames, 
   const vm = require("node:vm");
   const sandbox = { window: {} };
   vm.runInNewContext(read(path.join(skillDir, "templates", "state.js")), sandbox);
-  assert.strictEqual(sandbox.window.HUB_STATE.hubWorktree, "", "a fresh hub folder starts with a sample parent path");
+  assert.strictEqual(sandbox.window.HUB_STATE.hubWorktree, "", "a fresh hub folder must start with an empty hubWorktree");
+});
+
+test("the close leaves a parent another open hub still shows under", () => {
+  const closing = section(read(path.join(refDir, "cleanup.md")), "Closing the hub");
+  assert.match(closing, /another open hub records the same `hubWorktree`/, "the close must check other hubs on the same parent");
+  assert.match(closing, /Otherwise, if the parent still carries the hub's name: ask/);
+  const up = read(path.join(refDir, "upgrade.md"));
+  assert.match(up, /`hubWorktree`, `hubWorktreeOldName`, and `hubWorktreeOldNameMode`/, "upgrade step 5 must name all three fields");
+  assert.match(up, /sub-steps 1-4 are skipped/);
 });
