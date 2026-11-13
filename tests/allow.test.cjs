@@ -165,6 +165,7 @@ test("a gh pr create to another repo asks, and --base still runs", () => {
   const p = JSON.parse(fs.readFileSync(l.file, "utf8")).permissions;
   const allowed = (cmd) => p.allow.some((r) => matches(r, cmd)) && ![...p.ask, ...p.deny].some((r) => matches(r, cmd));
   for (const cmd of ["gh pr create --repo o/r --title t", "gh pr create --title t --repo o/r", "gh pr create --repo=o/r",
-    "gh pr create --title t --repo=o/r", "gh pr create -R o/r", "gh pr create --title t -R o/r"]) assert.ok(!allowed(cmd), `runs without a prompt: ${cmd}`);
+    "gh pr create --title t --repo=o/r", "gh pr create -R o/r", "gh pr create --title t -R o/r",
+    "gh pr create -Ro/r", "gh pr create --title t -Ro/r"]) assert.ok(!allowed(cmd), `runs without a prompt: ${cmd}`);
   for (const cmd of ["gh pr create --base feat/a --title t", "gh pr create --title t --body b"]) assert.ok(allowed(cmd), `${cmd} is no longer pre-allowed`);
 });
