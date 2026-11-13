@@ -240,3 +240,15 @@ test("the close leaves a parent another open hub still shows under", () => {
   assert.match(up, /`hubWorktree`, `hubWorktreeOldName`, and `hubWorktreeOldNameMode`/, "upgrade step 5 must name all three fields");
   assert.match(up, /sub-steps 1-4 are skipped/);
 });
+
+test("Codex workers get the allow list, push only in the forms their prefix rules can name, and report refusals", () => {
+  const autonomy = section(read(path.join(skillDir, "SKILL.md")), "Autonomy levels");
+  assert.doesNotMatch(autonomy, /Codex workers keep prompting/, "the allow list still says Codex gets nothing");
+  assert.match(autonomy, /`<worktree>\/\.codex\/rules\/orca-hub\.rules`/);
+  assert.match(autonomy, /Codex refuses a `prompt` command instead of asking/);
+  assert.doesNotMatch(section(read(path.join(skillDir, "SKILL.md")), "Start or resume"), /with a Claude worker, create the worktree first/,
+    "step 6 writes the allow list for Claude workers only");
+  const rule13 = read(path.join(refDir, "worker-spec.md")).split("\n").find((l) => l.startsWith("13. ")) || "";
+  assert.match(rule13, /As a Codex worker[^.]*`git push -u origin HEAD` every time and `git push --force-with-lease` after a rebase/);
+  assert.match(read(path.join(refDir, "cleanup.md")), /':!\.codex\/rules\/orca-hub\.rules'/);
+});
