@@ -11,15 +11,27 @@ const SYNC = path.join(__dirname, "..", "skills", "orca-hub", "templates", "sync
 // A copy in an empty folder: if loading it started the loop, it would write sync.pid there and exit, not touch templates/.
 function loadInEmptyFolder() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sync-"));
-  fs.copyFileSync(SYNC, path.join(dir, "sync.cjs"));
-  const out = execFileSync(process.execPath, ["-e", "const m = require('./sync.cjs'); setTimeout(() => console.log(typeof m.notes), 50)"], { cwd: dir, encoding: "utf8" });
-  return { out: out.trim(), files: fs.readdirSync(dir) };
+  try {
+    fs.copyFileSync(SYNC, path.join(dir, "sync.cjs"));
+    const out = execFileSync(process.execPath, ["-e", "const m = require('./sync.cjs'); setTimeout(() => console.log(typeof m.notes), 50)"], { cwd: dir, encoding: "utf8" });
+    return { out: out.trim(), files: fs.readdirSync(dir), dir };
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
 test("loading sync.cjs as a module exports notes and starts no loop", () => {
-  const { out, files } = loadInEmptyFolder();
+  const { out, files, dir } = loadInEmptyFolder();
   assert.strictEqual(out, "function");
   assert.deepStrictEqual(files, ["sync.cjs"]);
+  assert.strictEqual(fs.existsSync(dir), false, "the temp folder is removed");
+});
+
+test("node sync.cjs --once as the main module still runs a cycle", t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sync-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.copyFileSync(SYNC, path.join(dir, "sync.cjs"));
+  execFileSync(process.execPath, ["sync.cjs", "--once"], { cwd: dir, encoding: "utf8" });
+  // No state.js here: the cycle records that error in live.js, which only the start path writes.
+  assert.match(fs.readFileSync(path.join(dir, "live.js"), "utf8"), /"state\.js: /);
 });
 
 const msg = (sequence, type, item, body) => ({ sequence, type, item, body, created_at: `t${sequence}` });

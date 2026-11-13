@@ -14,5 +14,5 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: "24"
       - run: node --test

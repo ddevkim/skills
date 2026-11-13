@@ -13,8 +13,9 @@ const env = { ...process.env, GIT_CONFIG_GLOBAL: os.devNull, GIT_CONFIG_NOSYSTEM
 const git = (cwd, ...a) => execFileSync("git", a, { cwd, env, encoding: "utf8" });
 
 // An "origin" with one commit on main, and a clone with one feature commit that changes app.js and adds lib.js.
-function setup() {
+function setup(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "walkcheck-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const origin = path.join(root, "origin"), wt = path.join(root, "wt");
   fs.mkdirSync(origin);
   git(origin, "init", "-q", "-b", "main");
@@ -46,8 +47,14 @@ function walkcheck({ root, wt }, data) {
   return { code: r.status, out: r.stdout, diff: path.join(root, "walks", "S9-w1.diff.js") };
 }
 
-test("walkcheck prints ok and writes the diff file when the walkthrough matches the head", () => {
-  const s = setup();
+test("each walkcheck test removes its temp folder", async t => {
+  let root;
+  await t.test("fixture", st => { root = setup(st).root; });
+  assert.strictEqual(fs.existsSync(root), false);
+});
+
+test("walkcheck prints ok and writes the diff file when the walkthrough matches the head", t => {
+  const s = setup(t);
   const r = walkcheck(s, s.data);
   assert.strictEqual(r.out, "ok\n");
   assert.strictEqual(r.code, 0);
@@ -56,8 +63,8 @@ test("walkcheck prints ok and writes the diff file when the walkthrough matches 
   assert.deepStrictEqual(JSON.parse(diff.slice(18).replace(/;\n$/, "")).files.map(f => f.path), ["app.js", "lib.js"]);
 });
 
-test("walkcheck fails when a flow excerpt differs from the file at that line", () => {
-  const s = setup();
+test("walkcheck fails when a flow excerpt differs from the file at that line", t => {
+  const s = setup(t);
   s.data.flow[0].code = "const b = a + 2;\nmodule.exports = b;";
   const r = walkcheck(s, s.data);
   assert.strictEqual(r.code, 1);
@@ -65,24 +72,24 @@ test("walkcheck fails when a flow excerpt differs from the file at that line", (
   assert.ok(!fs.existsSync(r.diff));
 });
 
-test("walkcheck fails when files omits a changed file", () => {
-  const s = setup();
+test("walkcheck fails when files omits a changed file", t => {
+  const s = setup(t);
   s.data.files.pop();
   const r = walkcheck(s, s.data);
   assert.strictEqual(r.code, 1);
   assert.match(r.out, /files: lib\.js changed \(\+1 −0\) but is not listed/);
 });
 
-test("walkcheck fails when a map link names a node id that does not exist", () => {
-  const s = setup();
+test("walkcheck fails when a map link names a node id that does not exist", t => {
+  const s = setup(t);
   s.data.map.links.push({ from: "app", to: "ghost", label: "x" });
   const r = walkcheck(s, s.data);
   assert.strictEqual(r.code, 1);
   assert.match(r.out, /map: link app → ghost names "ghost", which is not a node id/);
 });
 
-test("walkcheck fails when the worktree has uncommitted changes", () => {
-  const s = setup();
+test("walkcheck fails when the worktree has uncommitted changes", t => {
+  const s = setup(t);
   fs.appendFileSync(path.join(s.wt, "lib.js"), "exports.y = 2;\n");
   const r = walkcheck(s, s.data);
   assert.strictEqual(r.code, 1);
