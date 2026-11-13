@@ -63,6 +63,8 @@ npx skills add ddevkim/skills --skill orca-hub
 1. In an Orca terminal, discuss the feature with your agent until you agree on what to build.
 2. Invoke the skill: `/orca-hub:orca-hub` in Claude Code. In Codex or another agent, ask it to use the orca-hub skill.
 
+Run it from any Orca terminal: Orca's sidebar shows the hub's workspace, or the repo's main workspace when the terminal belongs to none, as one entry named after the feature with every worker beneath it, and the hub gives that workspace its old name back when it closes.
+
 The hub then asks you for:
 
 - confirmation of the spec it wrote from your discussion,

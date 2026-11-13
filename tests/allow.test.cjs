@@ -149,3 +149,12 @@ test("refuses a symlinked .claude, a path that is not a worktree, and broken JSO
   }
   assert.strictEqual(fs.readFileSync(m.file, "utf8"), "{ not json");
 });
+
+test("an rm that names .git asks, and an ordinary rm still runs", () => {
+  const l = lab();
+  assert.strictEqual(l.run("write", l.wt, "medium").code, 0);
+  const p = JSON.parse(fs.readFileSync(l.file, "utf8")).permissions;
+  const allowed = (cmd) => p.allow.some((r) => matches(r, cmd)) && ![...p.ask, ...p.deny].some((r) => matches(r, cmd));
+  for (const cmd of ["rm -rf .git", "rm -r .git/hooks"]) assert.ok(!allowed(cmd), `runs without a prompt: ${cmd}`);
+  assert.ok(allowed("rm notes.txt"), "rm notes.txt is no longer pre-allowed");
+});

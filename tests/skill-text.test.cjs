@@ -146,3 +146,41 @@ test("dashboard.md's to-do, ask, and needs rows say how the list differs by auto
     assert.match(row, /`medium`[\s\S]*`high`/, `${start} row does not name the levels`);
   }
 });
+
+const section = (text, heading) => (text.match(new RegExp(`\\n## ${heading}\\n([\\s\\S]*?)(?=\\n## |$)`)) || [])[1] || "";
+
+test("SKILL.md builds one sidebar tree: a parent recorded with its old name, workers re-parented under it", () => {
+  const start = section(read(path.join(skillDir, "SKILL.md")), "Start or resume");
+  assert.match(start, /`hubWorktreeOldName`/, "no hubWorktreeOldName in Start or resume");
+  assert.match(start, /`isMainWorktree: true`/, "does not say how the main workspace is found");
+  assert.match(start, /orca worktree set --worktree path:<worker path> --parent-worktree path:<hubWorktree>/,
+    "no re-parent command for a top-level worker");
+  assert.doesNotMatch(start, /use `new-top-level` and log it/, "accepts top-level workers as the final state");
+});
+
+test("cleanup restores the parent's old name when the hub closes, and upgrade sets the parent", () => {
+  const closing = section(read(path.join(refDir, "cleanup.md")), "Closing the hub");
+  assert.match(closing, /`hubWorktreeOldName`/, "Closing the hub does not restore the old name");
+  assert.match(closing, /early/, "the early-close path is not covered");
+  assert.match(read(path.join(refDir, "upgrade.md")), /`hubWorktreeOldName`/, "upgrade.md lacks the line for an older hub");
+});
+
+test("state.js carries hubWorktreeOldName beside hubWorktree, empty by default", () => {
+  const vm = require("node:vm");
+  const sandbox = { window: {} };
+  vm.runInNewContext(read(path.join(skillDir, "templates", "state.js")), sandbox);
+  assert.strictEqual(sandbox.window.HUB_STATE.hubWorktreeOldName, "");
+  const keys = Object.keys(sandbox.window.HUB_STATE);
+  assert.strictEqual(keys.indexOf("hubWorktreeOldName"), keys.indexOf("hubWorktree") + 1);
+});
+
+test("the push rules name their exact forms and the allow list names its limits", () => {
+  const protocol = read(path.join(refDir, "worker-spec.md"));
+  const rule = (n) => protocol.split("\n").find((l) => l.startsWith(`${n}. `)) || "";
+  assert.match(rule(11), /Push \(`git push`\)/, "rule 11 does not name the push form");
+  assert.match(rule(13), /upstream/, "rule 13 does not say the bare push needs the upstream set first");
+  const autonomy = section(read(path.join(skillDir, "SKILL.md")), "Autonomy levels");
+  assert.match(autonomy, /`\+<ref>` are asked or refused/);
+  assert.doesNotMatch(autonomy, /`\+<ref>` are refused/);
+  assert.match(autonomy, /don't ask again/, "the allow-list paragraph does not warn about a stored answer");
+});

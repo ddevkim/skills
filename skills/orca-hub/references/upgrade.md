@@ -1,6 +1,6 @@
 # Upgrading a hub folder from an older version
 
-Read this when you resume a hub whose `state.js` has no `v: 2`, or has `v: 2` but no `hubWorktree` field (then do only step 5 of the second part). A folder with no `sync.cjs` is the oldest layout: do both parts in order. A folder that has `sync.cjs` needs only the second part. Then go back to SKILL.md, "Start or resume".
+Read this when you resume a hub whose `state.js` has no `v: 2`, or has `v: 2` but no `hubWorktree` or `hubWorktreeOldName` field (then do only step 5 of the second part; a parent the older hub already renamed gets `hubWorktreeOldName: ""`, since its old name is gone). A folder with no `sync.cjs` is the oldest layout: do both parts in order. A folder that has `sync.cjs` needs only the second part. Then go back to SKILL.md, "Start or resume".
 
 Korean strings in this file are examples for a Korean-speaking developer: write the same meaning in the developer's language ([SKILL.md](../SKILL.md), "Language").
 
@@ -30,5 +30,5 @@ The older layout walked the developer through the code first and reviewed it aft
    - `walk` with a walkthrough the developer has not approved: start its review now ([walkthrough.md](walkthrough.md), "Check it, then have it reviewed"); the item goes back to `review` and the developer sees it when the review passes.
    - `reviewPending`: `send` its worker "<id>: write walkthrough round <n+1> at your PR's head in the new template (protocol rule 6f), with `afterApproval: true` and `changes` from these entries: <its `sinceWalk`, or none>". When it arrives, check it with walkcheck, set the item's `walkthrough` to it, and review it at that head ([review.md](review.md), "After the verdict": the `walkDiff` branch clears `reviewPending`).
    - `walkPending`: its walkthrough comes before its merge approval ([walkthrough.md](walkthrough.md), "An open PR without an approved walkthrough").
-5. **Sidebar.** Do SKILL.md step 5's last sentence (`hubWorktree`, the hub's name and tab). For each `workers` row whose tone is not `done`: `orca worktree set --worktree path:<path> --parent-worktree path:<hubWorktree> --display-name "<id> · <short title>"`, then mirror it as "After every event" says.
+5. **Sidebar.** Do SKILL.md step 5's sidebar sentences (`hubWorktree`, `hubWorktreeOldName`, the hub's name and tab). For each `workers` row whose tone is not `done`: `orca worktree set --worktree path:<path> --parent-worktree path:<hubWorktree> --display-name "<id> · <short title>"`, then mirror it as "After every event" says.
 6. Start the sync and check the page once.
