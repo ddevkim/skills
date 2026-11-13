@@ -1,0 +1,11 @@
+{
+  "name": "orca-hub",
+  "version": "0.1.0",
+  "description": "Build a discussed feature as PRs through Orca worker sessions, with walkthroughs and a live dashboard",
+  "author": {
+    "name": "ddevkim"
+  },
+  "homepage": "https://github.com/ddevkim/skills",
+  "repository": "https://github.com/ddevkim/skills",
+  "license": "MIT"
+}
