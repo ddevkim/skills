@@ -172,7 +172,7 @@ test("skips a half whose file git tracks, so git add -A never commits the rules"
   }
 });
 
-test("refuses a dangling symlink at any path it writes, and creates nothing at its target", () => {
+test("skips the half with a dangling symlink at any path it writes, creates nothing at its target, and writes the other half", () => {
   for (const rel of [".claude", ".claude/settings.local.json", ".claude/.gitignore", ".codex", ".codex/rules",
     ".codex/rules/orca-hub.rules", ".codex/.gitignore"]) {
     const l = lab();
@@ -181,34 +181,89 @@ test("refuses a dangling symlink at any path it writes, and creates nothing at i
     fs.mkdirSync(path.dirname(link), { recursive: true });
     fs.symlinkSync(target, link);
     const r = l.run("write", l.wt, "medium");
-    assert.strictEqual(r.code, 1, rel);
-    assert.match(r.out, /symlink/, rel);
+    assert.strictEqual(r.code, 0, rel);
+    assert.match(r.out, /not written: .*symlink/, rel);
     assert.ok(!fs.existsSync(target), `${rel}: wrote through a dangling symlink`);
+    assert.ok(fs.existsSync(rel.startsWith(".claude") ? codexFiles(l.wt).rules : l.file), `${rel}: the other half was not written`);
+    assert.strictEqual(l.run("remove", l.wt).code, 0, rel);
+    assert.ok(!fs.existsSync(target), `${rel}: remove wrote through a dangling symlink`);
   }
 });
 
-test("refuses a symlinked .claude, a path that is not a worktree, and broken JSON, with a plain message", () => {
+test("exits 1 when both halves hold a symlink", () => {
   const l = lab();
   const away = path.join(l.root, "away");
   fs.mkdirSync(away);
   fs.symlinkSync(away, path.join(l.wt, ".claude"));
-  const linked = l.run("write", l.wt, "medium");
-  assert.strictEqual(linked.code, 1);
+  fs.symlinkSync(away, path.join(l.wt, ".codex"));
+  const r = l.run("write", l.wt, "medium");
+  assert.strictEqual(r.code, 1);
   assert.deepStrictEqual(fs.readdirSync(away), [], "wrote through the symlink");
+});
+
+test("a symlinked .claude skips only the Claude half, and with no record check, remove and low still pass", () => {
+  const l = lab();
+  const shared = path.join(l.root, "shared");
+  fs.mkdirSync(shared);
+  fs.writeFileSync(path.join(shared, "settings.local.json"), "{ not json");
+  fs.symlinkSync(shared, path.join(l.wt, ".claude"));
+  for (const args of [["check", l.wt], ["remove", l.wt], ["write", l.wt, "low"]]) assert.strictEqual(l.run(...args).code, 0, args[0]);
+  const r = l.run("write", l.wt, "medium");
+  assert.strictEqual(r.code, 0);
+  assert.match(r.out, /not written: .*\.claude.*symlink/);
+  assert.deepStrictEqual(fs.readdirSync(shared), ["settings.local.json"], "wrote through the symlink");
+  assert.ok(fs.existsSync(codexFiles(l.wt).rules), "a Codex worker lost its rules over a symlinked .claude");
+  assert.strictEqual(l.run("remove", l.wt).code, 0);
+  assert.strictEqual(l.run("check", l.wt).code, 0);
+  assert.strictEqual(fs.readFileSync(path.join(shared, "settings.local.json"), "utf8"), "{ not json");
+});
+
+test("remove refuses to write through a symlink that replaced a file it wrote", () => {
+  const l = lab();
+  const away = path.join(l.root, "away");
+  assert.strictEqual(l.run("write", l.wt, "medium").code, 0);
+  fs.writeFileSync(away, "theirs\n");
+  fs.rmSync(l.file);
+  fs.symlinkSync(away, l.file);
+  const r = l.run("remove", l.wt);
+  assert.strictEqual(r.code, 1);
+  assert.match(r.out, /symlink/);
+  assert.strictEqual(fs.readFileSync(away, "utf8"), "theirs\n");
+  assert.notStrictEqual(l.run("check", l.wt).code, 0, "check passed while the record is left");
+});
+
+test("broken JSON skips only the Claude half, and with no record check passes", () => {
+  const l = lab();
+  fs.mkdirSync(path.dirname(l.file));
+  fs.writeFileSync(l.file, "{ not json");
+  for (const args of [["check", l.wt], ["remove", l.wt], ["write", l.wt, "low"]]) assert.strictEqual(l.run(...args).code, 0, args[0]);
+  const r = l.run("write", l.wt, "high");
+  assert.strictEqual(r.code, 0);
+  assert.match(r.out, /not written: not valid JSON/);
+  assert.doesNotMatch(r.out, /\n\s+at /, "stack trace");
+  assert.ok(fs.existsSync(codexFiles(l.wt).rules), "a Codex worker lost its rules over broken Claude settings");
+  assert.strictEqual(fs.readFileSync(l.file, "utf8"), "{ not json");
+  assert.strictEqual(l.run("remove", l.wt).code, 0);
+  assert.strictEqual(l.run("check", l.wt).code, 0);
+});
+
+test("refuses a path that is not a worktree, and broken JSON in a file it wrote, with a plain message", () => {
+  const l = lab();
+  const away = path.join(l.root, "away");
+  fs.mkdirSync(away);
   const notRepo = l.run("write", away, "medium");
   assert.strictEqual(notRepo.code, 2);
   assert.doesNotMatch(notRepo.out, /\n\s+at /, "stack trace");
   assert.deepStrictEqual(fs.readdirSync(away), [], "left a directory in a path that is not a worktree");
-  const m = lab();
-  fs.mkdirSync(path.dirname(m.file));
-  fs.writeFileSync(m.file, "{ not json");
-  for (const args of [["write", m.wt, "high"], ["check", m.wt]]) {
-    const r = m.run(...args);
+  assert.strictEqual(l.run("write", l.wt, "high").code, 0);
+  fs.writeFileSync(l.file, "{ not json");
+  for (const args of [["remove", l.wt], ["check", l.wt]]) {
+    const r = l.run(...args);
     assert.strictEqual(r.code, 1, args[0]);
     assert.match(r.out, /not valid JSON/);
     assert.doesNotMatch(r.out, /\n\s+at /, "stack trace");
   }
-  assert.strictEqual(fs.readFileSync(m.file, "utf8"), "{ not json");
+  assert.strictEqual(fs.readFileSync(l.file, "utf8"), "{ not json");
 });
 
 test("an rm that names .git asks, and an ordinary rm still runs", () => {
@@ -246,6 +301,58 @@ const tokens = (e) => (Array.isArray(e) ? e : e.split(" "));
 const hits = (rule, cmd) => tokens(cmd).length >= rule.pattern.length && rule.pattern.every((p, i) => [].concat(p).includes(tokens(cmd)[i]));
 const decide = (rules, cmd) => rules.filter((r) => hits(r, cmd)).map((r) => r.decision).sort((a, b) => RANK[b] - RANK[a])[0] || null;
 
+// The decision each command needs. A prefix allow covers whatever follows it, so the forms that reach main, widen the
+// push, or force it through an allowed prefix need their own rule; -f with --force-with-lease drops the lease.
+const CODEX_WANT = {
+  "git push -u origin HEAD": "allow", "git push --force-with-lease": "allow",
+  "gh pr create --title t": "allow", "gh pr create --base feat/a --title t": "allow", "gh pr create --title x --body y": "allow",
+  "gh pr create --base feat/a --title x --body y": "allow",
+  "git push --force origin HEAD": "forbidden", "git push -f": "forbidden", "git push origin --force": "forbidden",
+  "git push origin -f x": "forbidden", "git push -u origin HEAD --force": "forbidden", "git push -u origin HEAD -f": "forbidden",
+  "git push -u origin HEAD -fu": "forbidden", "git push -u origin HEAD -uf": "forbidden", "git push -fu origin HEAD": "forbidden",
+  "git push origin -uf HEAD:main": "forbidden", "git push --set-upstream origin HEAD --force": "forbidden",
+  "git push --force-with-lease --force": "forbidden", "git push --force-with-lease -f": "forbidden",
+  "git push --force-with-lease -fu": "forbidden",
+  "gh pr create --repo o/r": "prompt", "gh pr create -R o/r": "prompt", "gh pr merge 1": null,
+  "rm -rf .git": "prompt", "rm -rf /": "prompt", "rm -r ..": "prompt", "rm -fr ~": "prompt", "rm -Rf .git/": "prompt",
+  "rm -rf .": "prompt", "rm -rf ./": "prompt", "rm -rf *": "prompt", "rm -rf ./.git": "prompt", "rm -rf ./.git/": "prompt",
+  "rm -rf -- /": "prompt", "rm -rf -- ~": "prompt", "rm -rf -- ..": "prompt", "rm -r -f /": "prompt",
+  "rm notes.txt": null, "rm -rf src": null, "rm -rf -- src": null,
+  "git push origin HEAD:main": "prompt", "git push origin main": "prompt", "git push origin master": "prompt",
+  "git push origin HEAD:master": "prompt", "git push -u origin main": "prompt", "git push -u origin refs/heads/main": "prompt",
+  "git push origin +HEAD:main": "prompt", "git push origin :main": "prompt", "git push origin --delete main": "prompt",
+  "git push origin HEAD:refs/heads/main": "prompt", "git push origin +HEAD:refs/heads/main": "prompt",
+  "git push origin --force-with-lease HEAD:main": "prompt", "git push --set-upstream origin main": "prompt",
+  "git push origin feat/a": null, "git push --set-upstream origin HEAD": null,
+  "git push --force-with-lease origin x": "prompt", "git push --force-with-lease origin main": "prompt",
+  "git push --force-with-lease origin HEAD:main": "prompt", "git push --force-with-lease origin +HEAD:main": "prompt",
+  "git push --force-with-lease origin --force": "prompt", "git push --force-with-lease --mirror": "prompt",
+  "git push --force-with-lease --all": "prompt", "git push --force-with-lease --delete": "prompt",
+  "git push --force-with-lease -u origin HEAD:main": "prompt", "git push --force-with-lease --set-upstream origin main": "prompt",
+  "git push --force-with-lease --no-verify origin +HEAD:main": "prompt", "git push --force-with-lease -q origin --delete main": "prompt",
+  "git push --force-with-lease --repo=origin HEAD:main": "prompt", "git push --force-with-lease HEAD:main": "prompt",
+  "git push --force-with-lease --force-if-includes origin main": "prompt", "git push --force-with-lease -v": "prompt",
+  "git push --force-with-lease -o ci.skip": "prompt",
+  "git push -u origin HEAD +HEAD:main": "prompt", "git push -u origin HEAD HEAD:main": "prompt",
+  "git push -u origin HEAD +HEAD:master": "prompt", "git push -u origin HEAD main": "prompt",
+  "git push -u origin HEAD :main": "prompt", "git push -u origin HEAD --delete main": "prompt",
+  "git push -u origin HEAD -d main": "prompt", "git push -u origin HEAD --mirror": "prompt",
+  "git push -u origin HEAD --all": "prompt", "git push -u origin HEAD --tags": "prompt", "git push -u origin HEAD --prune": "prompt",
+  "git push -u origin HEAD HEAD:refs/heads/main": "prompt", "git push -u origin HEAD +HEAD:refs/heads/main": "prompt",
+  "git push -u origin HEAD :refs/heads/master": "prompt", "git push -u origin HEAD --no-verify +HEAD:main": "prompt",
+  "git push -u origin HEAD -o ci.skip --force": "prompt", "git push -u origin HEAD --force-with-lease": "prompt",
+  "git push --set-upstream origin HEAD +HEAD:main": "prompt",
+};
+// Forms no prefix rule can name: Codex cannot say "exactly this argument list", so they keep the decision of the prefix
+// they start with. The rules file header names each kind; a change here means the header must change too.
+const CODEX_GAPS = {
+  "git push -u origin HEAD HEAD~3:main": "allow", "git push -u origin HEAD feat/a +HEAD:main": "allow",
+  "git push -u origin HEAD :feat/other-worker": "allow", "git push -u origin HEAD +feat/other-worker": "allow",
+  "git push -u origin HEAD --force-with-lease=main +HEAD:main": "allow",
+  "gh pr create --title x --repo o/r": "allow", "gh pr create -Ro/r": "allow", "gh pr create --repo=o/r": "allow",
+  "git -C . push --force": null, "git push upstream main": null, "rm -rf ../x": null, "rm -rf src ..": null,
+};
+
 test("medium and high also write Codex rules kept out of git, and low takes them out", () => {
   for (const level of ["medium", "high"]) {
     const l = lab();
@@ -266,33 +373,35 @@ test("the Codex rules give each command the decision the protocol needs", () => 
   assert.match(text, /best-effort/);
   const rules = codexRules(text);
   assert.match(text, /anything appended after an allowed prefix also runs/);
-  for (const gap of ["git -C . push --force", "other than origin", "rm -rf src ..", "$"]) assert.ok(text.includes(gap), `header does not name ${gap}`);
-  const want = {
-    "git push -u origin HEAD": "allow", "git push --force-with-lease": "allow",
-    "gh pr create --title t": "allow", "gh pr create --base feat/a --title t": "allow", "gh pr create --title x --body y": "allow",
-    "git push --force origin HEAD": "forbidden", "git push -f": "forbidden", "git push origin --force": "forbidden",
-    "git push origin -f x": "forbidden", "git push -u origin HEAD --force": "forbidden", "git push -u origin HEAD -f": "forbidden",
-    "gh pr create --repo o/r": "prompt", "gh pr create -R o/r": "prompt",
-    "rm -rf .git": "prompt", "rm -rf /": "prompt", "rm -r ..": "prompt", "rm -fr ~": "prompt", "rm -Rf .git/": "prompt",
-    "rm -rf .": "prompt", "rm -rf ./": "prompt", "rm -rf *": "prompt",
-    "rm notes.txt": null, "rm -rf src": null,
-    "git push origin HEAD:main": "prompt", "git push origin main": "prompt", "git push origin master": "prompt",
-    "git push origin HEAD:master": "prompt", "git push -u origin main": "prompt",
-    "git push origin +HEAD:main": "prompt", "git push origin :main": "prompt", "git push origin --delete main": "prompt",
-    // a prefix allow covers whatever follows it, so the forms that reach main or force through one need their own rule
-    "git push --force-with-lease origin x": "prompt", "git push --force-with-lease origin main": "prompt",
-    "git push --force-with-lease origin HEAD:main": "prompt", "git push --force-with-lease origin +HEAD:main": "prompt",
-    "git push --force-with-lease origin --force": "prompt", "git push --force-with-lease --force": "prompt",
-    "git push --force-with-lease -f": "prompt", "git push --force-with-lease --mirror": "prompt",
-    "git push --force-with-lease --all": "prompt", "git push --force-with-lease --delete": "prompt",
-    "git push -u origin HEAD +HEAD:main": "prompt", "git push -u origin HEAD HEAD:main": "prompt",
-    "git push -u origin HEAD +HEAD:master": "prompt", "git push -u origin HEAD main": "prompt",
-    "git push -u origin HEAD :main": "prompt", "git push -u origin HEAD --delete main": "prompt",
-    "git push -u origin HEAD -d main": "prompt", "git push -u origin HEAD --mirror": "prompt",
-    "git push -u origin HEAD --all": "prompt", "git push -u origin HEAD --tags": "prompt",
-  };
-  const got = Object.fromEntries(Object.keys(want).map((cmd) => [cmd, decide(rules, cmd)]));
-  assert.deepStrictEqual(got, want);
+  assert.match(text, /exactly this argument list/, "the header does not say why the allow rules cannot be narrower");
+  for (const gap of ["git -C . push --force", "other than origin", "rm -rf src ..", "$", "HEAD~3:main", "feat/a +HEAD:main",
+    ":feat/x", "--force-with-lease=main", "../x"]) assert.ok(text.includes(gap), `header does not name ${gap}`);
+  const got = Object.fromEntries(Object.keys(CODEX_WANT).map((cmd) => [cmd, decide(rules, cmd)]));
+  assert.deepStrictEqual(got, CODEX_WANT);
+  const gaps = Object.fromEntries(Object.keys(CODEX_GAPS).map((cmd) => [cmd, decide(rules, cmd)]));
+  assert.deepStrictEqual(gaps, CODEX_GAPS, "a named gap changed: update the header and the table");
+});
+
+const hasCodex = spawnSync("codex", ["--version"], { encoding: "utf8" }).status === 0;
+test("the real Codex matcher gives every command in both tables the same decision", { skip: !hasCodex && "codex is not on PATH" }, async () => {
+  const { spawn } = require("node:child_process");
+  const l = lab();
+  assert.strictEqual(l.run("write", l.wt, "medium").code, 0);
+  const home = path.join(l.root, "codex-home");
+  fs.mkdirSync(home);
+  const ask = (cmd) => new Promise((resolve, reject) => {
+    const p = spawn("codex", ["execpolicy", "check", "--rules", codexFiles(l.wt).rules, "--", ...tokens(cmd)],
+      { env: { ...process.env, CODEX_HOME: home } });
+    let out = "";
+    p.stdout.on("data", (d) => { out += d; });
+    p.stderr.on("data", (d) => { out += d; });
+    p.on("close", () => { try { resolve(JSON.parse(out).decision || null); } catch { reject(new Error(`${cmd}: ${out}`)); } });
+  });
+  const all = { ...CODEX_WANT, ...CODEX_GAPS };
+  const cmds = Object.keys(all);
+  const got = {};
+  for (let i = 0; i < cmds.length; i += 8) await Promise.all(cmds.slice(i, i + 8).map(async (c) => { got[c] = await ask(c); }));
+  assert.deepStrictEqual(got, all);
 });
 
 test("each Codex rule carries examples that hold, so Codex checks them when it loads the file", () => {
@@ -340,6 +449,19 @@ test("remove puts back an orca-hub.rules that was there before, byte for byte", 
   assert.strictEqual(fs.readFileSync(c.rules, "utf8"), original);
 });
 
+test("remove puts back a recorded orca-hub.rules even after .codex was deleted", () => {
+  const l = lab();
+  const c = codexFiles(l.wt);
+  fs.mkdirSync(path.dirname(c.rules), { recursive: true });
+  fs.writeFileSync(c.rules, "# kept by hand\n");
+  assert.strictEqual(l.run("write", l.wt, "high").code, 0);
+  fs.rmSync(c.dir, { recursive: true });
+  const r = l.run("remove", l.wt);
+  assert.strictEqual(r.code, 0, r.out);
+  assert.strictEqual(fs.readFileSync(c.rules, "utf8"), "# kept by hand\n");
+  assert.strictEqual(l.run("check", l.wt).code, 0);
+});
+
 test("remove keeps a .codex the repo had, and check names the Codex files while they exist", () => {
   const l = lab();
   const c = codexFiles(l.wt);
@@ -356,12 +478,14 @@ test("remove keeps a .codex the repo had, and check names the Codex files while 
   assert.strictEqual(l.run("check", l.wt).code, 0);
 });
 
-test("refuses a symlinked .codex", () => {
+test("a symlinked .codex skips only the Codex half", () => {
   const l = lab();
   const away = path.join(l.root, "away");
   fs.mkdirSync(away);
   fs.symlinkSync(away, codexFiles(l.wt).dir);
-  assert.strictEqual(l.run("write", l.wt, "medium").code, 1);
+  const r = l.run("write", l.wt, "medium");
+  assert.strictEqual(r.code, 0);
+  assert.match(r.out, /not written: .*\.codex.*symlink/);
   assert.deepStrictEqual(fs.readdirSync(away), [], "wrote through the symlink");
-  assert.ok(!fs.existsSync(l.file), "wrote the Claude rules after refusing");
+  assert.ok(fs.existsSync(l.file), "a Claude worker lost its allow list over a symlinked .codex");
 });
