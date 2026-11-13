@@ -359,9 +359,14 @@ function render() {
     return `<div class="stage ${!here.length ? "zero" : you ? "you" : k === "merged" ? "done" : ""}"><div class="n">${here.length}</div><div class="lbl">${T.stage[k]}</div><div class="ids">${here.map(i => jump(i.id)).join("")}</div></div>`;
   }).join("") + (blockedItems.length ? `<div class="stage you"><div class="n">${blockedItems.length}</div><div class="lbl">${T.st.blocked}</div><div class="ids">${blockedItems.map(i => jump(i.id)).join("")}</div></div>` : "");
   const know = list(S.summary).slice(0, 3);
+  const decLi = d => { const st = DEC[d.status] ? d.status : "watching"; return `<li><span class="pill ${DEC[st]}">${T.dec[st]}</span> ${d.id ? `<b>${esc(d.id)}</b> ` : ""}${esc(d.text)}${d.answer ? ` → <b>${esc(d.answer)}</b>` : ""}</li>`; };
   const hubDec = S.decisions.filter(d => d.by === "hub" && d.status === "answered");
+  const rest = S.decisions.filter(d => d.status !== "open" && !hubDec.includes(d));
+  // Beside the hub's list, the developer's heading holds only what they answered; other rows (watching) follow without a heading.
+  const mine = rest.filter(d => d.status === "answered"), other = rest.filter(d => d.status !== "answered");
+  const decSplit = `${mine.length ? `<h3>${T.yourDecH(esc(S.owner))}</h3><ul class="items">${mine.map(decLi).join("")}</ul>` : ""}${other.length ? `<ul class="items">${other.map(decLi).join("")}</ul>` : ""}`;
   const hubLine = LEVEL === "high" && hubDec.length ? `<li><a href="#decided">${T.hubDecLine(hubDec.length)}</a></li>` : "";
-  const hubList = hubDec.length ? `<h3>${T.hubDecH}</h3><ul class="items">${hubDec.map(d => `<li>${d.id ? `<b>${esc(d.id)}</b> ` : ""}${esc(d.text)} → <b>${esc(d.answer)}</b></li>`).join("")}</ul><h3>${T.yourDecH(esc(S.owner))}</h3>` : "";
+  const hubList = hubDec.length ? `<h3>${T.hubDecH}</h3><ul class="items">${hubDec.map(d => `<li>${d.id ? `<b>${esc(d.id)}</b> ` : ""}${esc(d.text)} → <b>${esc(d.answer)}</b></li>`).join("")}</ul>` : "";
   const refs = [refLink("spec.md", T.specDoc), refLink("protocol.md", T.protocolDoc), ...(Array.isArray(S.refs) ? S.refs : []).filter(r => r && r.label).slice(0, 6).map(r => refLink(r.href, r.label))];
   const syncM = L ? mins(L.at) : null;
   const sync = S.closed ? `<span class="pill idle">${T.syncDone}</span>`
@@ -396,7 +401,7 @@ ${know.length || hubLine ? `<ul class="know">${know.map(x => `<li>${esc(x)}</li>
   </table></div>
 </section>
 <section class="grid2">
-  <div class="card"${hubDec.length ? ' id="decided"' : ""}><h2>${T.decidedH}</h2>${hubList}<ul class="items">${S.decisions.filter(d => d.status !== "open" && !hubDec.includes(d)).map(d => { const st = DEC[d.status] ? d.status : "watching"; return `<li><span class="pill ${DEC[st]}">${T.dec[st]}</span> ${d.id ? `<b>${esc(d.id)}</b> ` : ""}${esc(d.text)}${d.answer ? ` → <b>${esc(d.answer)}</b>` : ""}</li>`; }).join("") || `<li>${T.decidedNone}</li>`}</ul></div>
+  <div class="card"${hubDec.length ? ' id="decided"' : ""}><h2>${T.decidedH}</h2>${hubList}${hubDec.length ? decSplit : `<ul class="items">${rest.map(decLi).join("") || `<li>${T.decidedNone}</li>`}</ul>`}</div>
   <div class="card"><h2>${T.workersH(active, esc(S.workerCap))}</h2><ul class="items">${Object.entries(NEW).map(([id, d]) => `<li><span class="pill clay">${T.startedNew}</span> <b>${esc(id)}</b> · <span class="mono">${esc(String(d.path || "").split("/").pop())}</span>${nowLine(W[id], { status: "active" })}</li>`).join("")}${S.workers.map(w => `<li><span class="pill ${TONE[w.tone] || "idle"}">${esc(w.state)}</span> <b>${esc(w.lane)} ${esc(w.item)}</b> · <span class="mono">${esc(w.worktree)}</span>${w.tone === "done" ? "" : nowLine(W[w.item], items[w.item])}</li>`).join("")}${S.log.slice(0, 8).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>
 </section>`;
 }

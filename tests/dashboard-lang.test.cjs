@@ -175,10 +175,15 @@ const AUTO = {
   lanes: [{ name: "b", countsAsPr: true, items: [
     item("P1", "active"), item("W1", "walk", { walkthrough: "W1-w1", phases: 4 }),
     item("R1", "ready", { base: "main", pr: 9, prUrl: "https://github.com/o/r/pull/9", phases: 7, walkthrough: "R1-w1" }),
-    item("B1", "blocked", { ext: "needs a key" })] }],
+    item("B1", "blocked", { ext: "needs a key" }),
+    // Guards: never merge to-dos at any level (stacked, walkthrough or review missing); shown exactly as at low.
+    item("R2", "ready", { pr: 10, phases: 7 }), item("R3", "ready", { base: "main", pr: 11, phases: 7, walkPending: true }),
+    item("R4", "ready", { base: "main", pr: 12, phases: 7, reviewPending: true })] },
+    { name: "other", countsAsPr: false, items: [item("X1", "blocked", { ext: "their PR is red" })] }],
   decisions: [{ id: "Q1", status: "open", text: "Default off?", options: ["off", "on"], recommend: "off" },
     { id: "H1", status: "answered", by: "hub", text: "Label wording?", answer: "short" },
-    { id: "D1", status: "answered", text: "Who merges?", answer: "dev" }]
+    { id: "D1", status: "answered", text: "Who merges?", answer: "dev" },
+    { id: "Q2", status: "watching", text: "Checking it." }]
 };
 const AUTO_LIVE = { at: ago(0.2), workers: { P1: { state: "working", at: ago(1), wait: "Allow push?" } } };
 const LEVELS = ["low", "medium", "high"];
@@ -195,9 +200,9 @@ test("C11 the to-do list holds exactly what each level leaves to the developer",
   for (const lang of ["ko", "en"]) {
     const t = (await renderAuto("low", lang)).table[lang];
     const want = {
-      low: [`${t.kWait} P1`, `${t.kNeed} -`, `${t.kDec} -`, `${t.kWalk} W1`, `${t.kMerge} R1`, `${t.kBlocked} B1`],
-      medium: [`${t.kWait} P1`, `${t.kNeed} -`, `${t.kDec} -`, `${t.kMerge} R1`, `${t.kBlocked} B1`],
-      high: [`${t.kWait} P1`, `${t.kNeed} -`, `${t.kDec} -`, `${t.kBlocked} B1`]
+      low: [`${t.kWait} P1`, `${t.kNeed} -`, `${t.kDec} -`, `${t.kWalk} W1`, `${t.kMerge} R1`, `${t.kBlocked} B1`, `${t.kBlocked} X1`],
+      medium: [`${t.kWait} P1`, `${t.kNeed} -`, `${t.kDec} -`, `${t.kMerge} R1`, `${t.kBlocked} B1`, `${t.kBlocked} X1`],
+      high: [`${t.kWait} P1`, `${t.kNeed} -`, `${t.kDec} -`, `${t.kBlocked} B1`, `${t.kBlocked} X1`]
     };
     for (const level of LEVELS) {
       const r = await renderAuto(level, lang);
@@ -232,6 +237,7 @@ test("C11 a card the hub carries on does not ask the developer to act", async ()
     assert.deepStrictEqual(card(high, "W1"), ["node s-hub", "clay", t.hubGoes], `${lang} high walk`);
     assert.deepStrictEqual(card(high, "R1"), ["node s-hub", "clay", t.hubGoes], `${lang} high ready`);
     assert.strictEqual(stageCls(high, t.stage.ready), "", `${lang} high ready stage`);
+    for (const id of ["R2", "R3", "R4", "X1"]) for (const html of [med, high]) assert.deepStrictEqual(card(html, id), card(low.html, id), `${lang} ${id} as at low`);
   }
 });
 
@@ -264,6 +270,13 @@ test("C11 decisions the hub took alone are listed under their own heading", asyn
     const html = (await renderAuto("high", lang, none)).html;
     assert.ok(!html.includes(t.hubDecH), `${lang}: heading without hub decisions`);
     assert.ok(!html.includes('href="#decided"'), `${lang}: count line without hub decisions`);
+    // Under the developer's heading only what they answered; a watching row makes no claim about who decided.
+    const full = (await renderAuto("high", lang)).html, mine = full.indexOf(`<h3>${t.yourDecH("Dev")}</h3>`);
+    const mineList = full.slice(mine, full.indexOf("</ul>", mine));
+    assert.ok(mine > 0 && mineList.includes("Who merges?") && !mineList.includes("Checking it."), `${lang}: developer heading holds only their answers`);
+    assert.ok(full.indexOf("Checking it.") > mine, `${lang}: the watching row still renders`);
+    const hubOnly = (await renderAuto("high", lang, { ...AUTO, decisions: AUTO.decisions.filter(d => d.by === "hub" || d.status === "open") })).html;
+    assert.ok(!hubOnly.includes(t.yourDecH("Dev")) && !hubOnly.includes(t.decidedNone), `${lang}: nothing under an empty developer heading`);
   }
 });
 
