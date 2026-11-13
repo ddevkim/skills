@@ -47,7 +47,7 @@ The developer picks a level when the hub starts (default `low`) and may change i
 | PR opening | after the walkthrough approval | once the review passes | once the review passes |
 | Merge | the developer approves each | the developer approves each | you merge when the preflight passes on green CI |
 | Deploy steps | the developer runs them | the developer runs them | you run the steps the repo documents, never one it does not |
-| Worker permission prompts | the developer answers each | `git push`, `gh pr create`, and `rm` inside the worktree are pre-allowed (allow list below) | as Medium |
+| Worker permission prompts | the developer answers each | pre-allowed: `git push` alone or with `origin …`, `-u origin …`, `--force-with-lease …`; `gh pr create …`; `rm` of relative paths. Still asked or refused: `-f`, `--force`, `+<ref>`, `:<ref>`, `-d`, `--delete`, `--prune`, `--mirror`, and `rm` of a path with `/` first, `..`, `~`, or `$` (allow list below) | as Medium |
 | When the developer hears from you | every checkpoint | every checkpoint | a stop-list hit, a blocked item, and the end |
 
 **Never changes.** TDD with red evidence, full verification on the final head, and the independent review (top rules 2-3), and the changed-lines hash comparison before every merge.

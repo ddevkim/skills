@@ -15,9 +15,10 @@ const { spawnSync } = require("node:child_process");
 // outrank allow, so an rm that may leave the worktree still prompts and a plain force push is refused.
 // Rules match command text, not paths: a best-effort limit, not a boundary.
 const RULES = {
-  allow: ["Bash(git push -u origin *)", "Bash(git push --force-with-lease *)", "Bash(gh pr create *)", "Bash(rm *)"],
+  allow: ["Bash(git push)", "Bash(git push origin *)", "Bash(git push -u origin *)", "Bash(git push --force-with-lease)",
+    "Bash(git push --force-with-lease *)", "Bash(gh pr create *)", "Bash(rm *)"],
   ask: ["Bash(rm /*)", "Bash(rm * /*)", "Bash(rm *..*)", "Bash(rm *~*)", "Bash(rm *$*)",
-    "Bash(git push *--delete*)", "Bash(git push * -d)", "Bash(git push * -d *)", "Bash(git push * :*)"],
+    "Bash(git push *--delete*)", "Bash(git push * -d)", "Bash(git push * -d *)", "Bash(git push * :*)", "Bash(git push *--prune*)", "Bash(git push *--mirror*)"],
   deny: ["Bash(git push --force *)", "Bash(git push * --force)", "Bash(git push * --force *)",
     "Bash(git push -f *)", "Bash(git push * -f)", "Bash(git push * -f *)", "Bash(git push * +*)"],
 };

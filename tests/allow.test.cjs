@@ -65,10 +65,10 @@ test("medium and high write the same rules, kept out of git", () => {
   assert.deepStrictEqual(written[0], written[1]);
   const p = written[0];
   const allowed = (cmd) => p.allow.some((r) => matches(r, cmd)) && ![...p.ask, ...p.deny].some((r) => matches(r, cmd));
-  for (const cmd of ["git push -u origin feat/x", "git push --force-with-lease", "gh pr create --base main --title t",
+  for (const cmd of ["git push", "git push origin feat/x", "git push -u origin feat/x", "git push --force-with-lease", "gh pr create --base main --title t",
     "rm src/old.js", "rm -f tests/a.test.cjs"]) assert.ok(allowed(cmd), `not pre-allowed: ${cmd}`);
   for (const cmd of ["git push --force", "git push -f origin x", "git push origin x --force", "git push origin +x",
-    "git push -fu origin x", "git push -u origin --delete x", "git push -u origin :x", "git push -u origin x -d",
+    "git push -fu origin x", "git push -u origin --delete x", "git push -u origin :x", "git push -u origin x -d", "git push origin -f x", "git push origin --prune", "git push --mirror",
     "rm ../other/file", "rm -rf /tmp/x", "rm ~/x", "rm $DIR/x"]) assert.ok(!allowed(cmd), `runs without a prompt: ${cmd}`);
 });
 
