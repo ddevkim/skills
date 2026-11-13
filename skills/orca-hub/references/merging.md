@@ -6,7 +6,7 @@ Korean strings in this file are examples for a Korean-speaking developer: write 
 
 ## Preflight before asking for approval
 
-Ask for approval only for an item that is `ready` (green CI on code the reviewer passed; the developer approved it in the walkthrough, and anything changed since is listed in this message), whose PR's base is `main`, and that has no `walkPending` or `reviewPending` (those come first: [walkthrough.md](walkthrough.md)), and only with these facts in the same message:
+Ask for approval only for an item that is `ready` (green CI on code the reviewer passed; `walkApproved` is set, by the developer at `low` and by you at `medium` and `high`, and anything changed since is listed in this message), whose PR's base is `main`, and that has no `walkPending` or `reviewPending` (those come first: [walkthrough.md](walkthrough.md)), and only with these facts in the same message:
 
 ```bash
 gh pr view <n> --json url,baseRefName,headRefOid,mergeStateStatus,reviewDecision,statusCheckRollup

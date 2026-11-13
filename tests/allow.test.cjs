@@ -38,7 +38,7 @@ function snapshot(dir, skip = () => false) {
   return out;
 }
 
-// Claude Code's Bash rule matching: `*` is any text, and a trailing " *" also matches the bare command.
+// A model of Claude Code's documented Bash rule syntax (not its real matcher): `*` is any text, and a trailing " *" also matches the bare command.
 function matches(rule, cmd) {
   const body = rule.match(/^Bash\((.*)\)$/)[1];
   const esc = (s) => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
@@ -65,27 +65,28 @@ test("medium and high write the same rules, kept out of git", () => {
   assert.deepStrictEqual(written[0], written[1]);
   const p = written[0];
   const allowed = (cmd) => p.allow.some((r) => matches(r, cmd)) && ![...p.ask, ...p.deny].some((r) => matches(r, cmd));
-  const stopped = (cmd) => [...p.ask, ...p.deny].some((r) => matches(r, cmd));
   for (const cmd of ["git push -u origin feat/x", "git push --force-with-lease", "gh pr create --base main --title t",
     "rm src/old.js", "rm -f tests/a.test.cjs"]) assert.ok(allowed(cmd), `not pre-allowed: ${cmd}`);
   for (const cmd of ["git push --force", "git push -f origin x", "git push origin x --force", "git push origin +x",
-    "rm ../other/file", "rm -rf /tmp/x", "rm ~/x", "rm $DIR/x"]) assert.ok(stopped(cmd), `not stopped: ${cmd}`);
+    "git push -fu origin x", "git push -u origin --delete x", "git push -u origin :x", "git push -u origin x -d",
+    "rm ../other/file", "rm -rf /tmp/x", "rm ~/x", "rm $DIR/x"]) assert.ok(!allowed(cmd), `runs without a prompt: ${cmd}`);
 });
 
 test("write merges into an existing file and remove restores its bytes", () => {
   const l = lab();
   fs.mkdirSync(path.dirname(l.file));
-  const original = '{\n    "model": "opus",\n    "permissions": { "allow": ["Bash(git push *)", "Bash(npm test)"] }\n}\n';
+  const original = '{\n    "model": "opus",\n    "permissions": { "allow": ["Bash(gh pr create *)", "Bash(npm test)"] }\n}\n';
   fs.writeFileSync(l.file, original);
   fs.writeFileSync(path.join(l.wt, ".gitignore"), ".claude/settings.local.json\n");
   assert.strictEqual(l.run("write", l.wt, "medium").code, 0);
   const merged = JSON.parse(fs.readFileSync(l.file, "utf8"));
   assert.strictEqual(merged.model, "opus");
   assert.ok(merged.permissions.allow.includes("Bash(npm test)"));
-  assert.ok(merged.permissions.allow.includes("Bash(gh pr create *)"));
-  assert.strictEqual(merged.permissions.allow.filter((r) => r === "Bash(git push *)").length, 1);
+  assert.ok(merged.permissions.allow.includes("Bash(git push -u origin *)"));
+  assert.strictEqual(merged.permissions.allow.filter((r) => r === "Bash(gh pr create *)").length, 1);
   assert.strictEqual(l.run("remove", l.wt).code, 0);
   assert.strictEqual(fs.readFileSync(l.file, "utf8"), original);
+  assert.strictEqual(l.run("check", l.wt).code, 0, "check reports a rule the original file held");
 });
 
 test("remove leaves nothing where there was nothing, and check says so", () => {
@@ -95,7 +96,7 @@ test("remove leaves nothing where there was nothing, and check says so", () => {
   assert.strictEqual(l.run("write", l.wt, "high").code, 0);
   const found = l.run("check", l.wt);
   assert.notStrictEqual(found.code, 0, "check passed while the allow list exists");
-  assert.match(found.out, /Bash\(git push \*\)/);
+  assert.match(found.out, /Bash\(gh pr create \*\)/);
   assert.strictEqual(l.run("remove", l.wt).code, 0);
   assert.deepStrictEqual(snapshot(l.wt, (p) => p.endsWith(".git")), before);
   assert.strictEqual(l.run("check", l.wt).code, 0);
@@ -122,4 +123,28 @@ test("refuses when the file would show in git and the repo owns .claude/.gitigno
   assert.notStrictEqual(r.code, 0);
   assert.match(r.out, /git/);
   assert.ok(!fs.existsSync(l.file), "wrote a file git would show");
+});
+
+test("refuses a symlinked .claude, a path that is not a worktree, and broken JSON, with a plain message", () => {
+  const l = lab();
+  const away = path.join(l.root, "away");
+  fs.mkdirSync(away);
+  fs.symlinkSync(away, path.join(l.wt, ".claude"));
+  const linked = l.run("write", l.wt, "medium");
+  assert.strictEqual(linked.code, 1);
+  assert.deepStrictEqual(fs.readdirSync(away), [], "wrote through the symlink");
+  const notRepo = l.run("write", away, "medium");
+  assert.strictEqual(notRepo.code, 2);
+  assert.doesNotMatch(notRepo.out, /\n\s+at /, "stack trace");
+  assert.deepStrictEqual(fs.readdirSync(away), [], "left a directory in a path that is not a worktree");
+  const m = lab();
+  fs.mkdirSync(path.dirname(m.file));
+  fs.writeFileSync(m.file, "{ not json");
+  for (const args of [["write", m.wt, "high"], ["check", m.wt]]) {
+    const r = m.run(...args);
+    assert.strictEqual(r.code, 1, args[0]);
+    assert.match(r.out, /not valid JSON/);
+    assert.doesNotMatch(r.out, /\n\s+at /, "stack trace");
+  }
+  assert.strictEqual(fs.readFileSync(m.file, "utf8"), "{ not json");
 });
