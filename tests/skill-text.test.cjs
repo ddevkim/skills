@@ -258,6 +258,7 @@ test("the Codex rules are described as prefixes that also allow what follows, an
   const row = autonomy.split("\n").find((l) => l.startsWith("| Worker permission prompts")) || "";
   assert.match(row, /Codex[^|]*allow rules also cover anything appended to these forms/, "the table promises exact forms to Codex workers");
   assert.match(row, /guard rules cover fewer forms than Claude's/);
+  assert.match(row, /the bare `git push` is not pre-allowed for a Codex worker/, "the table lists the bare push as pre-allowed for Codex");
   const rule13 = read(path.join(refDir, "worker-spec.md")).split("\n").find((l) => l.startsWith("13. ")) || "";
   assert.doesNotMatch(rule13, /Every other push form asks <the developer>/, "rule 13 says every push form asks, which a Codex worker under bypass does not get");
   assert.match(rule13, /Codex[^.]*allow rules also cover anything appended to these forms/);
@@ -273,4 +274,6 @@ test("the allow list says each half is written on its own", () => {
   assert.match(autonomy, /writes each half on its own/);
   assert.match(autonomy, /tracks `\.claude\/settings\.local\.json`/);
   assert.match(autonomy, /exits 1 only when it wrote neither half/);
+  assert.match(autonomy, /a symlink in one of its paths/, "the per-half skip does not name a symlink");
+  assert.match(autonomy, /settings file that is not valid JSON/, "the per-half skip does not name broken JSON");
 });
