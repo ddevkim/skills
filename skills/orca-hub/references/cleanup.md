@@ -27,9 +27,9 @@ When the last item merged, or when the developer closes the hub early (park or d
 
 1. For every `workers` row, clean it up again if `orca orchestration worker-list --run <runId> --json` shows its terminal not `released` or `orca worktree list --repo id:<repoId> --json` still lists its path. Then run `allow.cjs check` on every worker path that still exists: any `left:` line fails the close, so tell the developer what it printed and do not set `closed`.
 2. Delete the remote branch of every merged item that `git -C <repo path> ls-remote --heads origin <branch>` still shows.
-3. Set `closed: true` (the sync writes once more and exits). With `hubWorktree` set, give the parent back by the first rule that applies:
+3. Set `closed: true` (the sync writes once more and exits). With `hubWorktree` set, first read every other hub folder's `state.js` (`<root>/_hub/*/state.js` without `closed: true`): if another open hub records the same `hubWorktree`, leave the parent's name and comment as they are, since that hub still shows under it, and say so in `log`. Otherwise give the parent back by the first rule that applies:
    1. `hubWorktreeOldNameMode` is not "" and `hubWorktreeOldName` is not "" (the name is known): `orca worktree set --worktree path:<hubWorktree> --display-name "<hubWorktreeOldName>" --comment "" --read`. A mode other than `fixed` comes back as a fixed name, since no command returns a workspace to its automatic name (`--display-name ""` is accepted and changes nothing): tell the developer.
-   2. Otherwise, `hubWorktreeOldNameMode` is "" but the parent still carries the hub's name: ask the developer which name to give back (an upgraded hub lost it), then the same command with their answer.
+   2. Otherwise, if the parent still carries the hub's name: ask the developer which name to give back (an upgraded hub lost it), then the same command with their answer.
    3. Otherwise the hub renamed nothing: `--comment "" --read` only.
 
    A parent that is the hub's own workspace keeps the hub's name only if the developer asks for that. No `--workspace-status`: the hub never set the parent's board status. Never remove the parent workspace.
