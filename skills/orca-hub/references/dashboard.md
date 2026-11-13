@@ -10,6 +10,7 @@ Korean strings in this file are examples for a Korean-speaking developer: write 
 
 | On the page, top to bottom | Comes from | You write |
 |---|---|---|
+| **Progress bar**, above everything: the share of all checkpoints the owner's PRs reached (8 per PR, a merged PR counts 8; 100% only when every PR is merged) and the merged count | item `phases` and `status` | nothing more |
 | Header line and headline (the developer's to-do count) | `title`, `owner`, counts | `title`: the feature's name in the developer's words |
 | **To-do list**: one numbered row per thing only the developer can do, each with its link and how to answer | prompt waits (from `sync.cjs`), `needs`, open `decisions`, items in `walk`, `ready` items on `main`, `blocked` items | `ask`, `needs`, and each decision's `text`, `options`, `recommend`, `items` |
 | **Stage strip**: how many PRs are in each stage, 대기 → 작업 중 → 독립 리뷰 → 워크스루 대기 → PR 열림·CI → 병합 준비됨 → 병합됨 (English: Waiting → Working → Review → Walkthrough waiting → PR open · CI → Ready to merge → Merged); each id jumps to its card | item `status` | nothing more: keep `status` true |
