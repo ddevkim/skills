@@ -137,3 +137,12 @@ test("the docs name the English labels of both pages", () => {
   const language = read(path.join(skillDir, "SKILL.md")).match(/\n## Language\n([\s\S]*?)(?=\n## )/)[1];
   assert.match(language, /`templates\/dashboard\.html`[\s\S]*`templates\/walkthrough\.html`/);
 });
+
+test("dashboard.md's to-do, ask, and needs rows say how the list differs by autonomy level", () => {
+  const rows = read(path.join(refDir, "dashboard.md")).split("\n");
+  for (const start of ["| **To-do list**", "| `ask` |", "| `needs` |"]) {
+    const row = rows.find((l) => l.startsWith(start));
+    assert.ok(row, `no row ${start}`);
+    assert.match(row, /`medium`[\s\S]*`high`/, `${start} row does not name the levels`);
+  }
+});
