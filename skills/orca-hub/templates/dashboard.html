@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>허브 진행 현황</title>
+<title>Hub</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <!-- Non-blocking: a slow or offline font server must not hold the renderer script. -->
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
@@ -173,7 +173,7 @@ const L10N = {
     ciPass: "CI passed", ciFail: n => `CI failed: ${n}`, ciPending: (p, t) => `CI running ${p}/${t}`,
     startedPending: "Worker started · hub not updated", reportedPhase: p => `Worker says: ${p} · hub not updated`, msgPending: m => `${m} · hub not updated`,
     waitingPill: w => `Waiting: ${w}`, afterLine: a => `Must finish first: ${a}`, mergedVia: (pr, sha) => `Merged with PR ${pr}${sha}`,
-    syncDone: "Sync ended (done)", syncOff: "Live sync off", syncStale: m => `Live sync stopped ${m} min ago`, syncLive: a => `Live · ${a}`, syncErr: e => `Sync error: ${e}`,
+    syncDone: "Sync ended (done)", syncOff: "Live sync off", syncStale: m => `Live sync has been stopped for ${m} min`, syncLive: a => `Live · ${a}`, syncErr: e => `Sync error: ${e}`,
     askHead: o => `What ${o} needs to do now`, calm: o => `${o} has nothing to do right now.`,
     hubLag: (n, more, a) => `${n}${more ? "+" : ""} worker ${n === 1 && !more ? "message is" : "messages are"} not yet in the hub (oldest ${a}). The "hub not updated" tags on the cards show the step the worker reported. The hub may be asking you something or busy with other work.`,
     stateBroken: "Could not read state.js, so this is the last good screen. The hub may be editing the file.",

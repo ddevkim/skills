@@ -9,7 +9,6 @@ const { execFileSync } = require("node:child_process");
 
 const ROOT = path.join(__dirname, "..");
 const REL = "skills/orca-hub/templates/dashboard.html";
-const BASE_SHA = "959bd4e"; // the template before this feature: "as today"
 const HANGUL = /[ᄀ-ᇿ㄰-㆏가-힯]/;
 const NOW = Date.parse("2026-11-13T12:00:00Z");
 const ago = min => new Date(NOW - min * 60000).toISOString();
@@ -58,7 +57,8 @@ const SAMPLE = {
       item("A5", "pr", { pr: 5, prUrl: "https://github.com/o/r/pull/5", phases: 6 }),
       item("A6", "ready", { base: "main", pr: 6, prUrl: "https://github.com/o/r/pull/6", phases: 7, walkthrough: "A6-w2", walkApproved: "A6-w1" }),
       item("A7", "merged", { pr: 7, phases: 8, mergeSha: "abcdef1234" }), item("A8", "blocked", { ext: "needs a key" }),
-      item("A9", "active", { walkPending: true, after: ["A1"] }), item("A10", "active", { reviewPending: true })
+      item("A9", "active", { walkPending: true, after: ["A1"] }), item("A10", "active", { reviewPending: true }),
+      item("A11", "active"), item("A12", "review"), item("A13", "pr", { pr: 8 })
     ] }
   ],
   decisions: [{ id: "Q1", status: "open", text: "Default off?", options: ["off", "on"], recommend: "off", items: ["A2"] },
@@ -70,7 +70,8 @@ const LIVE = {
   workers: {
     A1: { state: "idle", at: ago(1) }, A2: { state: "idle", at: ago(10), tool: "Bash: ls", say: "Looking." },
     A3: { state: "working", at: ago(45) }, A4: { state: "working", at: ago(2), wait: { source: "hook", since: NOW - 7 * 60000 }, tool: "Bash: rm x" },
-    A5: { state: "working", at: ago(3), wait: "Allow push?" }, A6: { state: "idle", at: ago(0.5), wait: { source: "hook" } }
+    A5: { state: "working", at: ago(3), wait: "Allow push?" }, A6: { state: "idle", at: ago(0.5), wait: { source: "hook" } },
+    A11: { state: "idle", at: ago(70) }, A12: { state: "working", at: ago(35) }
   },
   prs: { 5: { ci: "pending", pass: 1, fail: 0, pending: 2 }, 6: { ci: "pass" }, 8: { ci: "fail", fail: 2 } },
   hub: { count: 3, more: true, oldestAt: ago(20), items: { A9: { phase: "verified" }, A10: { last: { type: "worker_done" } }, A3: { last: { type: "escalation" } } },
@@ -96,10 +97,34 @@ test("C5 English render has no Hangul in any variant", async () => {
   }
 });
 
-test("P7 Korean render (lang absent or ko) equals the template at the base commit", async () => {
-  const base = execFileSync("git", ["show", `${BASE_SHA}:${REL}`], { cwd: ROOT, encoding: "utf8" });
+test("every label with a count or an age renders in the sample", async () => {
+  const en = visible(await renderVariant(current(), VARIANTS.full, "en"));
+  for (const s of ["CI failed: 2", "Same step for 35 min", "Worker stopped 70 min", "1 h 10 min ago"]) assert.ok(en.includes(s), s);
+  const ko = visible(await renderVariant(current(), VARIANTS.full, undefined));
+  for (const s of ["CI 실패 2건", "같은 단계 35분째", "작업자 멈춤 70분", "1시간 10분 전"]) assert.ok(ko.includes(s), s);
+});
+
+test("C5 the static <title> shown before the first render has no Korean", () => {
+  const title = current().match(/<title>([^<]*)<\/title>/)[1];
+  assert.ok(!HANGUL.test(title), `static title: ${title}`);
+});
+
+// The Korean render of every variant, frozen from the template at BASE_SHA ("as today"). To change it on purpose:
+//   KO_FIXTURE_FROM=<git ref> node --test tests/dashboard-lang.test.cjs   (renders that ref's template and rewrites the file)
+const FIXTURE = path.join(__dirname, "fixtures", "dashboard-ko.json");
+test("P7 Korean render (lang absent or ko) equals the frozen render of the base template", async () => {
+  if (process.env.KO_FIXTURE_FROM) {
+    const base = execFileSync("git", ["show", `${process.env.KO_FIXTURE_FROM}:${REL}`], { cwd: ROOT, encoding: "utf8" });
+    const out = {};
+    for (const [name, v] of Object.entries(VARIANTS)) out[name] = visible(await renderVariant(base, v, undefined));
+    fs.mkdirSync(path.dirname(FIXTURE), { recursive: true });
+    fs.writeFileSync(FIXTURE, JSON.stringify(out, null, 1) + "\n");
+  }
+  assert.ok(fs.existsSync(FIXTURE), `missing ${FIXTURE}`);
+  const frozen = JSON.parse(fs.readFileSync(FIXTURE, "utf8"));
+  assert.deepStrictEqual(Object.keys(frozen).sort(), Object.keys(VARIANTS).sort());
   for (const [name, v] of Object.entries(VARIANTS)) {
-    const before = visible(await renderVariant(base, v, undefined));
+    const before = frozen[name];
     assert.strictEqual(visible(await renderVariant(current(), v, undefined)), before, `${name}: lang absent`);
     const ko = await renderVariant(current(), v, "ko");
     assert.strictEqual(visible(ko), before, `${name}: lang ko`);
