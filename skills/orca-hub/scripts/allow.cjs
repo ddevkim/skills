@@ -39,13 +39,15 @@ const UP = ["-u", "--set-upstream"];
 const FORCE = ["--force", "-f", "-fu", "-uf", "-fd", "-df", "-fq", "-qf", "-fv", "-vf"];
 const MAIN = ["main", "master"].flatMap((b) => [b, `refs/heads/${b}`]).flatMap((r) => [r, `HEAD:${r}`]).flatMap((r) => [r, `+${r}`])
   .concat(["main", "master"].flatMap((b) => [`:${b}`, `:refs/heads/${b}`]));
-const WIDE = ["--delete", "-d", "--mirror", "--all", "--branches", "--tags", "--prune"];
+const WIDE = ["--delete", "-d", "-dq", "-qd", "-du", "-ud", "--mirror", "--all", "--branches", "--tags", "--prune"];
 const EXTRA = ["--no-verify", "-o", "--push-option", "-q", "--quiet", "-v", "--verbose", "--force-with-lease", "--force-if-includes",
   "--atomic", "--follow-tags"];
-const LEAD = ["--no-verify", "-q", "--quiet", "-v", "--verbose", "--atomic", "--follow-tags", "--force-if-includes"]; // before the remote
+const LEAD = ["--no-verify", "-q", "--quiet", "-v", "--verbose", "--atomic", "--follow-tags", "--force-if-includes", "--porcelain",
+  "--signed", "--thin", "--no-thin", "--progress"]; // flags without a value that may come before the remote
+const PRE = [...UP, ...LEAD];
 const TARGET = [...MAIN, ...WIDE, "+HEAD"];
 const RM_FLAGS = ["-r", "-rf", "-fr", "-R", "-Rf", "-fR"];
-const RM_PATHS = ["~", "..", ".", ".git", "./.git"].flatMap((p) => [p, `${p}/`]).concat(["/", "*", "./*"]);
+const RM_PATHS = ["~", "..", ".", ".git", "./.git"].flatMap((p) => [p, `${p}/`, `${p}/*`]).concat(["/", "/*", "*", ".*", "./.*"]);
 const NO_FORCE = "orca-hub: no plain force push; use git push --force-with-lease";
 const CODEX_RULES = [
   { pattern: ["git", "push", "-u", "origin", "HEAD"], decision: "allow", justification: "orca-hub: the push workers use",
@@ -74,24 +76,29 @@ const CODEX_RULES = [
   { pattern: ["git", "push", "origin", [...TARGET, "--force-with-lease"]], decision: "prompt",
     justification: "orca-hub: a push to main or master, or a wider push, needs the developer",
     match: ["git push origin main", "git push origin HEAD:refs/heads/master", "git push origin --delete main"], not_match: ["git push origin feat/a"] },
-  { pattern: ["git", "push", "origin", UP, MAIN], decision: "prompt",
-    justification: "orca-hub: a push to main or master needs the developer",
-    match: ["git push origin -u HEAD:main", "git push origin --set-upstream main"], not_match: ["git push origin -u feat/a"] },
-  { pattern: ["git", "push", UP, "origin", TARGET], decision: "prompt",
+  { pattern: ["git", "push", "origin", PRE, TARGET], decision: "prompt",
     justification: "orca-hub: a push to main or master, or a wider push, needs the developer",
-    match: ["git push -u origin main", "git push --set-upstream origin main"], not_match: ["git push -u origin HEAD"] },
+    match: ["git push origin -u HEAD:main", "git push origin --no-verify main"], not_match: ["git push origin -u feat/a"] },
+  { pattern: ["git", "push", "origin", "HEAD", TARGET], decision: "prompt",
+    justification: "orca-hub: a push to main or master, or a wider push, needs the developer",
+    match: ["git push origin HEAD --delete feat/x", "git push origin HEAD :main"], not_match: ["git push origin HEAD"] },
   { pattern: ["git", "push", WIDE], decision: "prompt", justification: "orca-hub: a wider push needs the developer",
     match: ["git push -d origin feat/x", "git push --mirror"], not_match: ["git push -u origin HEAD"] },
-  { pattern: ["git", "push", LEAD, "origin", TARGET], decision: "prompt",
+  { pattern: ["git", "push", PRE, [...WIDE, "--force-with-lease"]], decision: "prompt",
+    justification: "orca-hub: a wider push, or a lease after another flag, needs the developer",
+    match: ["git push -u --delete origin feat/x", "git push --no-verify --force-with-lease origin main"], not_match: ["git push -u origin HEAD"] },
+  { pattern: ["git", "push", PRE, "origin", TARGET], decision: "prompt",
     justification: "orca-hub: a push to main or master, or a wider push, needs the developer",
-    match: ["git push --no-verify origin main", "git push -q origin HEAD:main"], not_match: ["git push --no-verify origin feat/a"] },
-  { pattern: ["git", "push", LEAD, UP, "origin", TARGET], decision: "prompt",
+    match: ["git push -u origin main", "git push --no-verify origin main"], not_match: ["git push -u origin HEAD"] },
+  { pattern: ["git", "push", PRE, PRE, "origin", TARGET], decision: "prompt",
     justification: "orca-hub: a push to main or master, or a wider push, needs the developer",
-    match: ["git push --no-verify -u origin HEAD:main"], not_match: ["git push --no-verify -u origin HEAD"] },
+    match: ["git push --no-verify -u origin HEAD:main", "git push -u --no-verify origin HEAD:main"], not_match: ["git push --no-verify -u origin HEAD"] },
   { pattern: ["git", "push", FORCE], decision: "forbidden", justification: NO_FORCE,
     match: ["git push --force", "git push -f origin x", "git push -fu origin HEAD"], not_match: ["git push --force-with-lease"] },
-  { pattern: ["git", "push", LEAD, FORCE], decision: "forbidden", justification: NO_FORCE,
-    match: ["git push --no-verify --force", "git push -v -f origin HEAD"], not_match: ["git push --no-verify origin feat/a"] },
+  { pattern: ["git", "push", PRE, FORCE], decision: "forbidden", justification: NO_FORCE,
+    match: ["git push --no-verify --force", "git push -u -f origin HEAD"], not_match: ["git push --no-verify origin feat/a"] },
+  { pattern: ["git", "push", PRE, PRE, FORCE], decision: "forbidden", justification: NO_FORCE,
+    match: ["git push --no-verify -u -f origin HEAD"], not_match: ["git push --no-verify -u origin HEAD"] },
   { pattern: ["git", "push", "origin", FORCE], decision: "forbidden", justification: NO_FORCE,
     match: ["git push origin --force", "git push origin -f x"], not_match: ["git push origin --force-with-lease"] },
   { pattern: ["git", "push", "origin", "HEAD", FORCE], decision: "forbidden", justification: NO_FORCE,
@@ -111,7 +118,9 @@ const CODEX_TEXT = `# orca-hub allow.cjs: written for one worker and removed wit
 # (HEAD~3:main, main:main), a second refspec after HEAD (git push -u origin HEAD feat/a +HEAD:main), a branch
 # other than main or master after + or : (+feat/x, :feat/x), a flag in a later position
 # (gh pr create --title t --repo o/r, git push origin feat/x --force), a flag with a value before the remote
-# (git push -o ci.skip origin main), longer bundled short flags (-fuq), a joined value (-Ro/r, --repo=o/r,
+# (git push -o ci.skip origin main),
+# more than two flags before the remote, or one not listed (git push -q --no-verify -u origin main, git push -4 origin main),
+# longer bundled short flags (-fuq), a joined value (-Ro/r, --repo=o/r,
 # --force-with-lease=main), git options before the subcommand (git -C . push --force),
 # remotes other than origin, other rm flag spellings (-rfv, -r -f -v, --recursive --force),
 # a later operand (rm -rf src ..), a $ expansion, any absolute path other than / itself (rm -rf /tmp/x),
@@ -158,6 +167,8 @@ const validSettings = (text) => {
   return isObject(s) && (s.permissions === undefined || (isObject(s.permissions)
     && Object.keys(RULES).every((k) => s.permissions[k] === undefined || Array.isArray(s.permissions[k]))));
 };
+// remove and check read the file the script wrote; a shape the merge cannot read stops them with a plain message.
+const readSettings = (text) => (validSettings(text) ? JSON.parse(text) : fail(1, `not valid JSON settings: ${file}`));
 // A .gitignore the script made goes only while it still holds the script's text; one the developer edited stays.
 const dropIgnore = (f, text) => {
   if (!fs.existsSync(f)) return;
@@ -177,7 +188,7 @@ function remove() {
     if (claude.original === null) fs.rmSync(file);
     else fs.writeFileSync(file, claude.original);
   } else if (now !== null) { // changed since the write: take out only the rules it added
-    const settings = parse(now, file);
+    const settings = readSettings(now);
     for (const key of Object.keys(RULES)) {
       const list = settings.permissions && settings.permissions[key];
       if (list) settings.permissions[key] = list.filter((r) => !claude.added[key].includes(r));
@@ -259,7 +270,8 @@ function check() {
     if (!linked(paths) && fs.existsSync(f) && fs.readFileSync(f, "utf8") === text) left.push(`file ${f}`);
   }
   const claude = claudeHalf(rec);
-  const p = claude && !linked(CLAUDE_PATHS) ? (readJson(file) || {}).permissions || {} : {};
+  const now = claude && !linked(CLAUDE_PATHS) && fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null;
+  const p = now === null ? {} : readSettings(now).permissions || {};
   for (const [key, rules] of Object.entries(claude ? claude.added : {})) { // rules the original held are not ours
     for (const r of rules) if ((p[key] || []).includes(r)) left.push(`${key} ${r} in ${file}`);
   }

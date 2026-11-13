@@ -261,6 +261,21 @@ test("settings that are not an object, or a permission list that is not an array
   }
 });
 
+test("settings changed into a shape that is not valid after a write stop remove, check, and a level change with a plain message", () => {
+  for (const text of ["null\n", '{"permissions":{"allow":"x"}}\n']) {
+    const l = lab();
+    assert.strictEqual(l.run("write", l.wt, "high").code, 0);
+    fs.writeFileSync(l.file, text);
+    for (const args of [["write", l.wt, "medium"], ["write", l.wt, "low"], ["remove", l.wt], ["check", l.wt]]) {
+      const r = l.run(...args);
+      assert.strictEqual(r.code, 1, `${text} ${args[0]} ${args[2] || ""}`);
+      assert.match(r.out, /not valid JSON settings/, `${text} ${args[0]}`);
+      assert.doesNotMatch(r.out, /\n\s+at /, `${text} ${args[0]}: stack trace`);
+    }
+    assert.strictEqual(fs.readFileSync(l.file, "utf8"), text);
+  }
+});
+
 test("remove leaves a .gitignore it made when its text changed since, and says so", () => {
   const l = lab();
   const c = codexFiles(l.wt);
@@ -386,6 +401,21 @@ const CODEX_WANT = {
   "rm -rf ./*": "prompt", "rm -rf ../": "prompt", "rm -rf ~/": "prompt", "rm -rf -- .git": "prompt", "rm -f -r .git": "prompt",
   "rm -rf .git .": "prompt",
   "gh pr merge 1": "prompt", "gh pr merge 1 --admin": "prompt",
+  // two flags before the remote, or a flag after it
+  "git push -u -f origin HEAD": "forbidden", "git push -u --force origin HEAD": "forbidden",
+  "git push --set-upstream --force origin HEAD": "forbidden", "git push --no-verify -u -f origin HEAD": "forbidden",
+  "git push -u --delete origin feat/x": "prompt", "git push -u -d origin feat/x": "prompt", "git push -q --delete origin feat/x": "prompt",
+  "git push --no-verify -d origin feat/x": "prompt", "git push --no-verify --mirror": "prompt", "git push -v --all origin": "prompt",
+  "git push --no-verify --force-with-lease origin main": "prompt", "git push -q --force-with-lease": "prompt",
+  "git push --force-if-includes --force-with-lease origin main": "prompt",
+  "git push -u --no-verify origin HEAD:main": "prompt", "git push --no-verify --no-verify origin main": "prompt",
+  "git push origin --no-verify HEAD:main": "prompt", "git push origin --no-verify main": "prompt", "git push origin -q HEAD:main": "prompt",
+  "git push origin HEAD --delete feat/x": "prompt", "git push origin HEAD :main": "prompt", "git push origin HEAD +HEAD:main": "prompt",
+  "git push -dq origin feat/x": "prompt", "git push -qd origin feat/x": "prompt", "git push -ud origin feat/x": "prompt",
+  "git push -du origin feat/x": "prompt", "git push --porcelain origin main": "prompt", "git push --thin origin main": "prompt",
+  "git push --no-verify -u origin HEAD": null, "git push --no-verify origin feat/a": null,
+  "rm -rf .*": "prompt", "rm -rf ./.*": "prompt", "rm -rf /*": "prompt", "rm -rf ~/*": "prompt", "rm -rf ../*": "prompt",
+  "rm -r -f ./*": "prompt", "rm -rf -- ./*": "prompt",
 };
 // Forms no prefix rule can name: Codex cannot say "exactly this argument list", so they keep the decision of the prefix
 // they start with. The rules file header names each kind; a change here means the header must change too.
@@ -399,6 +429,7 @@ const CODEX_GAPS = {
   "git push -fuq origin HEAD": null, "git push --force-with-lease -fuq": "allow", "rm --recursive --force .git": null,
   "rm -rfv .git": null, "git push origin main:main": null,
   "git push": null, "git push origin": null, "git push origin HEAD": null,
+  "git push -q --no-verify -u origin main": null, "git push -4 origin main": null,
 };
 
 test("medium and high also write Codex rules kept out of git, and low takes them out", () => {
@@ -424,7 +455,8 @@ test("the Codex rules give each command the decision the protocol needs", () => 
   assert.match(text, /exactly this argument list/, "the header does not say why the allow rules cannot be narrower");
   for (const gap of ["git -C . push --force", "other than origin", "rm -rf src ..", "$", "HEAD~3:main", "feat/a +HEAD:main",
     ":feat/x", "--force-with-lease=main", "../x", "git push -o ci.skip origin main", "any absolute path other than / itself (rm -rf /tmp/x)",
-    "git push origin feat/x --force", "longer bundled short flags (-fuq)", "--recursive --force", "push.default"])
+    "git push origin feat/x --force", "longer bundled short flags (-fuq)", "--recursive --force", "push.default",
+    "more than two flags before the remote, or one not listed (git push -q --no-verify -u origin main, git push -4 origin main)"])
     assert.ok(text.includes(gap), `header does not name ${gap}`);
   const got = Object.fromEntries(Object.keys(CODEX_WANT).map((cmd) => [cmd, decide(rules, cmd)]));
   assert.deepStrictEqual(got, CODEX_WANT);
