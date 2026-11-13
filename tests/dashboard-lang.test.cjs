@@ -287,3 +287,56 @@ test("C11 the template state.js starts at low and shows a decision the hub took 
   assert.strictEqual(ctx.HUB_STATE.autonomy, "low");
   assert.match(src, /\/\/.*by: "hub", status: "answered"/, "a commented example decision with by: \"hub\"");
 });
+
+// C12: one bar on top: checkpoints reached over 8 per PR of the lanes with countsAsPr, floored; merged counts 8.
+const PROG = { ...AUTO, needs: [], decisions: [], workers: [] };
+const renderProg = (items, lang = "ko") =>
+  render(current(), { states: [{ ...PROG, lang, lanes: [{ name: "b", countsAsPr: true, items }, { name: "o", countsAsPr: false, items: [item("O1", "merged", { phases: 8 })] }] }], live: undefined });
+const prog = html => {
+  const m = html.match(/<div class="prog" role="progressbar" aria-valuenow="(\d+)" aria-valuemin="0" aria-valuemax="100" aria-label="([^"]*)" title="([^"]*)">[\s\S]*?class="prog-done" style="width:([\d.]+)%"[\s\S]*?class="prog-move" style="width:([\d.]+)%"[\s\S]*?<span class="prog-text">([\s\S]*?)<\/span><\/div>/);
+  assert.ok(m, "the progressbar markup is on the page");
+  return { now: +m[1], label: m[2], title: m[3], green: +m[4], clay: +m[5], text: m[6] };
+};
+const merged = n => Array.from({ length: n }, (_, k) => item(`M${k}`, "merged", { phases: k % 2 ? 8 : 3 }));
+
+test("C12 the bar is the page's first element and counts checkpoints of the owner's PRs", async () => {
+  // 0 + 3 + 6 + merged (8, whatever phases says) = 17 of 32 = 53.1 %; the countsAsPr: false lane is ignored.
+  const mixed = [item("A", "todo", { phases: 0 }), item("B", "active", { phases: 3 }), item("C", "pr", { phases: 6 }), item("D", "merged", { phases: 2 })];
+  for (const lang of ["ko", "en"]) {
+    const r = await renderProg(mixed, lang), t = r.table[lang], p = prog(r.html);
+    assert.ok(r.html.trimStart().startsWith('<div class="prog"'), `${lang}: bar comes first`);
+    assert.strictEqual(p.now, 53);
+    assert.strictEqual(p.label, t.progLabel);
+    assert.strictEqual(p.text, `<b>53%</b> · ${t.progMerged(1, 4)}`);
+    assert.strictEqual(p.title, t.progMerged(1, 4));
+    assert.ok(Math.abs(p.green - 25) < 0.01 && Math.abs(p.clay - 28.125) < 0.01, `${lang}: green merged share, clay the rest`);
+  }
+  const { table } = await renderProg(mixed);
+  assert.deepStrictEqual([table.ko.progMerged(1, 4), table.en.progMerged(1, 4)], ["병합 1/4", "Merged 1/4"]);
+});
+
+test("C12 phases above 8 or below 0 are clamped", async () => {
+  assert.strictEqual(prog((await renderProg([item("A", "active", { phases: 12 }), item("B", "todo", { phases: -3 })])).html).now, 50);
+});
+
+test("C12 the bar floors: 99.5 % shows 99, and 100 only when every PR is merged", async () => {
+  assert.strictEqual(prog((await renderProg([...merged(24), item("Z", "ready", { phases: 7 })])).html).now, 99);
+  for (const lang of ["ko", "en"]) {
+    const r = await renderProg(merged(3), lang), t = r.table[lang], p = prog(r.html);
+    assert.strictEqual(p.now, 100);
+    assert.ok(Math.abs(p.green - 100) < 0.01 && p.clay < 0.01, `${lang}: all green`);
+    // The headline already says every PR is merged, so the bar shows the percentage alone and keeps the count in its title.
+    assert.ok(r.html.includes(t.headAllMerged(PROG.title, 3)), `${lang}: headline carries the count`);
+    assert.strictEqual(p.text, "<b>100%</b>");
+    assert.strictEqual(p.title, t.progMerged(3, 3));
+  }
+});
+
+test("C12 no countable PR, no bar", async () => {
+  for (const items of [[], undefined]) {
+    const lanes = [{ name: "o", countsAsPr: false, items: [item("O1", "active", { phases: 4 })] }, ...(items ? [{ name: "b", countsAsPr: true, items }] : [])];
+    const html = (await render(current(), { states: [{ ...PROG, lanes }], live: undefined })).html;
+    assert.ok(!html.includes('role="progressbar"') && !html.includes("NaN"), "no bar");
+  }
+  assert.strictEqual(prog((await renderProg([item("A", "todo", { phases: 0 })])).html).now, 0, "one countable PR at 0 still has its bar");
+});

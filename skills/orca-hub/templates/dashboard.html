@@ -37,6 +37,11 @@ h1, h2 { font-family: var(--serif); font-weight: 400; margin: 0; text-wrap: bala
 h1 { font-size: 32px; line-height: 1.25; margin-top: 20px; }
 h2 { font-size: 22px; line-height: 1.3; margin-bottom: 14px; }
 h3 { font-size: 13px; font-weight: 600; color: var(--text-2); margin: 12px 0 4px; }
+/* overall progress: checkpoints reached over 8 per PR; green merged, clay reached but not merged */
+.prog { display: flex; align-items: center; gap: 12px; padding-top: 14px; }
+.prog-track { flex: 1 1 auto; min-width: 0; height: 10px; border-radius: 999px; background: var(--idle-bg); overflow: hidden; display: flex; }
+.prog-done { background: var(--good); } .prog-move { background: var(--clay); }
+.prog-text { flex: 0 0 auto; font-size: 13px; color: var(--text-2); white-space: nowrap; } .prog-text b { color: var(--text); font-weight: 600; }
 .meta { font-size: 13px; color: var(--text-2); border-bottom: 1px solid var(--line); padding: 12px 0; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 20px; }
 .num { font-size: 40px; font-weight: 500; line-height: 1; white-space: nowrap; }
@@ -152,7 +157,8 @@ const L10N = {
     workersH: (n, cap) => `작업자 ${n}명 작업 중 (동시 상한 ${cap}명)`, startedNew: "시작됨 · 허브 반영 전",
     hubGoes: "허브가 이어서 진행", level: { medium: "자율 단계: 중간", high: "자율 단계: 높음" },
     levelTip: { medium: "제품 결정과 병합 승인만 묻고, PR 은 워크스루를 기다리지 않고 엽니다.", high: "되돌릴 수 없는 작업 앞에서만 묻고, 제품 결정과 병합은 허브가 스스로 합니다." },
-    hubDecH: "허브가 스스로 정한 것", yourDecH: o => `${o}님이 정한 것`, hubDecLine: n => `허브가 스스로 정한 것이 ${n}건 있습니다.`
+    hubDecH: "허브가 스스로 정한 것", yourDecH: o => `${o}님이 정한 것`, hubDecLine: n => `허브가 스스로 정한 것이 ${n}건 있습니다.`,
+    progLabel: "전체 진행률", progMerged: (m, n) => `병합 ${m}/${n}`
   },
   en: {
     lang: "en", docTitle: t => `${t} progress`,
@@ -189,7 +195,8 @@ const L10N = {
     workersH: (n, cap) => `${n} ${n === 1 ? "worker" : "workers"} working (limit ${cap})`, startedNew: "Started · hub not updated",
     hubGoes: "Hub carries on", level: { medium: "Autonomy: medium", high: "Autonomy: high" },
     levelTip: { medium: "You are asked for product decisions and merge approvals; PRs open without waiting for the walkthrough.", high: "You are asked only before irreversible actions; the hub decides product questions and merges on its own." },
-    hubDecH: "Decided by the hub", yourDecH: o => `Decided by ${o}`, hubDecLine: n => `The hub decided ${n} ${n === 1 ? "question" : "questions"} on its own.`
+    hubDecH: "Decided by the hub", yourDecH: o => `Decided by ${o}`, hubDecLine: n => `The hub decided ${n} ${n === 1 ? "question" : "questions"} on its own.`,
+    progLabel: "Overall progress", progMerged: (m, n) => `Merged ${m}/${n}`
   }
 };
 let T = L10N.ko;
@@ -375,11 +382,16 @@ function render() {
     : `<span class="pill good">${T.syncLive(ago(L.at))}</span>`;
   const syncErr = L && L.errors && L.errors.length ? ` <span class="pill watch">${T.syncErr(esc(L.errors[0]))}</span>` : "";
   const allMerged = merged === prs.length && prs.length;
+  // Overall progress: a merged PR counts all 8 checkpoints; floor, so 100 only when every PR is merged.
+  const reached = prs.reduce((n, i) => n + (i.status === "merged" ? 8 : Math.min(Math.max(Number(i.phases) || 0, 0), 8)), 0);
+  const share = prs.length ? reached * 100 / (8 * prs.length) : 0, pct = Math.floor(share), mergedW = merged * 100 / (prs.length || 1);
+  // The all-merged headline already states the count, so the bar then shows the percentage alone (the count stays in its title).
+  const prog = !prs.length ? "" : `<div class="prog" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="${T.progLabel}" title="${T.progMerged(merged, prs.length)}"><div class="prog-track"><span class="prog-done" style="width:${mergedW.toFixed(2)}%"></span><span class="prog-move" style="width:${Math.max(share - mergedW, 0).toFixed(2)}%"></span></div><span class="prog-text"><b>${pct}%</b>${allMerged ? "" : ` · ${T.progMerged(merged, prs.length)}`}</span></div>`;
   const asks = todoN
     ? `<div class="ask"><b>${T.askHead(esc(S.owner))}</b>${S.ask ? `<div>${esc(S.ask)}</div>` : ""}${todo.length ? `<ol class="todo">${todo.map(t => `<li><span class="pill bad">${t.kind}</span> ${t.text}${t.links ? ` · ${t.links}` : ""}${t.opts ? `<div class="opts">${t.opts}</div>` : ""}<div class="how">${t.how}</div></li>`).join("")}</ol>` : ""}</div>`
     : allMerged || S.closed ? "" : `<div class="ask calm"><b>${T.calm(esc(S.owner))}</b></div>`;
 
-  app.innerHTML = `
+  app.innerHTML = `${prog}
 ${H.count && lagM >= HUB_LAG_MIN && !S.closed ? `<div class="ask ${lagM >= 15 ? "warnbar" : ""}">${T.hubLag(esc(H.count), H.more, ago(H.oldestAt))}</div>` : ""}
 ${stateBroken ? `<div class="ask warnbar">${T.stateBroken}</div>` : ""}
 <div class="meta"><span>${T.meta(esc(S.title), esc(S.owner), esc(S.baseSha))}${LEVEL === "low" ? "" : ` · <span title="${esc(T.levelTip[LEVEL])}">${T.level[LEVEL]}</span>`}</span><span>${T.updated(esc(S.updatedAt))} · ${sync}${syncErr}</span></div>
