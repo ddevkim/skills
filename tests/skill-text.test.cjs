@@ -160,7 +160,7 @@ test("SKILL.md builds one sidebar tree: a parent recorded with its old name, wor
 
 test("resume never records the hub's own name as the parent's old name", () => {
   const start = section(read(path.join(skillDir, "SKILL.md")), "Start or resume");
-  assert.match(start, /Record `hubWorktreeOldName` only while `hubWorktree` is still ""/, "step 5 records the old name on every pass");
+  assert.match(start, /a resume never records/, "step 5 records the old name on every pass");
   assert.match(start, /`hubWorktree` set: only re-parent its live workers/, "resume re-runs step 5 on a renamed parent");
   assert.doesNotMatch(start, /set the parent as in step 5 and re-parent/, "resume re-records the parent's current name");
   assert.match(start, /name already has a hub's `<Hub> · <feature>` form/, "a second hub would record the first hub's name");
@@ -202,11 +202,26 @@ test("the hub records whether the parent's name was automatic and asks when it c
   assert.strictEqual(sandbox.window.HUB_STATE.hubWorktreeOldNameMode, "");
   assert.strictEqual(keys.indexOf("hubWorktreeOldNameMode"), keys.indexOf("hubWorktreeOldName") + 1);
   const start = section(read(path.join(skillDir, "SKILL.md")), "Start or resume");
-  assert.match(start, /its `displayNameMode` as `hubWorktreeOldNameMode`/, "step 5 does not record the name mode");
+  assert.match(start, /`hubWorktreeOldNameMode` \(the mode\)/, "step 5 does not record the name mode");
   assert.match(start, /rename it again when its name differs from the hub's/, "resume leaves an unrenamed parent");
   const closing = section(read(path.join(refDir, "cleanup.md")), "Closing the hub");
   assert.match(closing, /no command returns a workspace to its automatic name/, "the close hides that an automatic name comes back fixed");
   assert.match(closing, /`hubWorktreeOldNameMode` is "" but the parent still carries the hub's name: ask the developer which name to give back/);
   assert.match(closing, /`--workspace-status`/, "the close does not say what happens to the parent's board status");
   assert.match(read(path.join(refDir, "upgrade.md")), /an existing `hubWorktree` is kept/);
+});
+
+test("step 5 reads and records the parent's name in one edit before it renames, once per hub folder", () => {
+  const start = section(read(path.join(skillDir, "SKILL.md")), "Start or resume");
+  const steps = ["1. Find the parent:", "2. Read that row's `displayName` and `displayNameMode`", "3. A parent whose name already has a hub's",
+    "4. Write `hubWorktree`", "5. Only then rename:"].map((s) => start.indexOf(s));
+  assert.ok(steps.every((i) => i >= 0), `a sub-step is missing: ${steps}`);
+  assert.deepStrictEqual([...steps].sort((a, b) => a - b), steps, "the sub-steps are out of order");
+  assert.match(start, /Write `hubWorktree` \(the path\), `hubWorktreeOldName` \(the name\), and `hubWorktreeOldNameMode` \(the mode\) into `state\.js` in one edit/);
+  assert.match(start, /This recording happens exactly once per hub folder: on a new hub, or on an upgrade whose `hubWorktree` was ""; a resume never records\./);
+  assert.doesNotMatch(start, /only while `hubWorktree` is still ""/, "the guard follows the store");
+  const vm = require("node:vm");
+  const sandbox = { window: {} };
+  vm.runInNewContext(read(path.join(skillDir, "templates", "state.js")), sandbox);
+  assert.strictEqual(sandbox.window.HUB_STATE.hubWorktree, "", "a fresh hub folder starts with a sample parent path");
 });

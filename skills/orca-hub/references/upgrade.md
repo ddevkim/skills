@@ -1,6 +1,6 @@
 # Upgrading a hub folder from an older version
 
-Read this when you resume a hub whose `state.js` has no `v: 2`, or has `v: 2` but no `hubWorktree` or `hubWorktreeOldName` field (then do only step 5 of the second part; an older hub with `hubWorktree` set already renamed its parent, which then has its own `<Hub> · <feature>` name: it gets `hubWorktreeOldName: ""` and `hubWorktreeOldNameMode: ""`, since the old name is gone, step 5 records nothing, and the close asks the developer). A folder with no `sync.cjs` is the oldest layout: do both parts in order. A folder that has `sync.cjs` needs only the second part. Then go back to SKILL.md, "Start or resume".
+Read this when you resume a hub whose `state.js` has no `v: 2`, or has `v: 2` but no `hubWorktree`, `hubWorktreeOldName`, or `hubWorktreeOldNameMode` field (then do only step 5 of the second part; an older hub with `hubWorktree` set already renamed its parent, which then has its own `<Hub> · <feature>` name: it gets `hubWorktreeOldName: ""` and `hubWorktreeOldNameMode: ""`, since the old name is gone, step 5 records nothing, and the close asks the developer). A folder with no `sync.cjs` is the oldest layout: do both parts in order. A folder that has `sync.cjs` needs only the second part. Then go back to SKILL.md, "Start or resume".
 
 Korean strings in this file are examples for a Korean-speaking developer: write the same meaning in the developer's language ([SKILL.md](../SKILL.md), "Language").
 
