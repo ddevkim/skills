@@ -1,6 +1,8 @@
 # Splitting work into PRs
 
-Read this before you plan items, and again when a worker reports a diff over its budget. The repo's own PR rules (a `pr-workflow` skill, CONTRIBUTING, `AGENTS.md`) come first where they are stricter.
+Read this before you plan items, and again when a worker reports a diff over its budget. The repo's own PR rules (a PR workflow skill, CONTRIBUTING, `AGENTS.md`) come first where they are stricter.
+
+Korean strings in this file are examples for a Korean-speaking developer: write the same meaning in the developer's language ([SKILL.md](../SKILL.md), "Language").
 
 ## One PR is one unit
 
@@ -53,7 +55,7 @@ Walk the user's flow end to end (data → logic → API → screen → operation
 Speed comes first: run as many workers as there are items that can go in parallel without overlapping, because each independent lane that waits is time lost. Overlap, not the developer's reading pace, is what makes parallel work expensive: two workers touching the same files or the same flow pay for it in conflicts, rebases, and new review rounds.
 
 - **The cap** (`workerCap`) is the number of items that can start now and are independent of each other (the rules above: no unmerged dependency beyond one green parent, no shared file, stacks at most two deep), limited only by what the machine and CI hold: workers whose checks run at the same time without timing out or queueing for long. Propose it with the standing choices (SKILL.md, step 3; estimate the independent items from the spec, and correct it after the plan in step 4 in your next message) and let the developer set it. Without an answer, use that number, at most 4.
-- **Backpressure.** Count the items waiting for the developer: status `walk`, plus `ready` items on `main` (the 워크스루 승인 and 병합 승인 rows of the dashboard's to-do list). When that count reaches the cap, start no new worker; log "새 작업자 보류: 개발자 확인 대기 <n>건" once. Workers already running carry on. Start the next item when the count drops below the cap. Below that, waiting items never hold back an independent item.
+- **Backpressure.** Count the items waiting for the developer: status `walk`, plus `ready` items on `main` (the 워크스루 승인 and 병합 승인 rows of the dashboard's to-do list; English: Walkthrough and Merge). When that count reaches the cap, start no new worker; log once that new workers wait for n items the developer must check ("새 작업자 보류: 개발자 확인 대기 <n>건"). Workers already running carry on. Start the next item when the count drops below the cap. Below that, waiting items never hold back an independent item.
 - **Adjusting.** At a checkpoint message, propose a change, and change `workerCap` only when the developer agrees:
   - up when an independent item is held only by the cap and the machine and CI keep up (no check timing out, no long CI queue);
   - down when running items keep conflicting (two rebases in a row that resolved conflicts between them: they were not independent, so re-cut them), or when checks start timing out or queueing.
@@ -64,7 +66,7 @@ Speed comes first: run as many workers as there are items that can go in paralle
 - When one item feeds several, put it at the end of its own lane and list it in the dependent items' `after` (`after: ["N3"]`): the page links each dependent card to it.
 - Each item: `id` (ASCII letters, digits, `-`, `_`: the walkthrough link and file names need it), `title` (the outcome sentence), `base`, `risk` (the risky area in the developer's words), `ext` (what it waits for, as one short sentence: [dashboard.md](dashboard.md)).
 - Each item names the `spec.md` lines it implements (completion criteria, test scenarios). Every completion criterion belongs to some item; one that belongs to none is a missing item.
-- `flowSummary`: the lanes in the order they unblock each other, for example "선행 병합 → 기반 레인 → 화면 레인". The page shows it after the 개발 흐름 heading.
+- `flowSummary`: the lanes in the order they unblock each other, for example "선행 병합 → 기반 레인 → 화면 레인". The page shows it after the 개발 흐름 (Work flow) heading.
 
 ## Example
 

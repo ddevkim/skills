@@ -32,7 +32,7 @@ else missing.push(`${why(git, "git") || "git does not run"} — install git: htt
 
 const orca = run("orca", ["--version"]);
 if (!orca.ok) {
-  missing.push(`${why(orca, "Orca") || "the orca CLI does not run"} — get Orca at https://www.onorca.dev`);
+  missing.push(`${why(orca, "Orca") || "the orca CLI does not run"} — get Orca at https://orca.dev`);
 } else {
   found.orca = orca.out.trim().split("\n")[0];
   const repos = run("orca", ["repo", "list", "--json"]);
