@@ -155,6 +155,6 @@ test("an rm that names .git asks, and an ordinary rm still runs", () => {
   assert.strictEqual(l.run("write", l.wt, "medium").code, 0);
   const p = JSON.parse(fs.readFileSync(l.file, "utf8")).permissions;
   const allowed = (cmd) => p.allow.some((r) => matches(r, cmd)) && ![...p.ask, ...p.deny].some((r) => matches(r, cmd));
-  for (const cmd of ["rm -rf .git", "rm -r .git/hooks"]) assert.ok(!allowed(cmd), `runs without a prompt: ${cmd}`);
-  assert.ok(allowed("rm notes.txt"), "rm notes.txt is no longer pre-allowed");
+  for (const cmd of ["rm -rf .git", "rm -r .git/hooks", "rm -rf ./.git"]) assert.ok(!allowed(cmd), `runs without a prompt: ${cmd}`);
+  for (const cmd of ["rm notes.txt", "rm .gitignore"]) assert.ok(allowed(cmd), `${cmd} is no longer pre-allowed`);
 });

@@ -158,10 +158,18 @@ test("SKILL.md builds one sidebar tree: a parent recorded with its old name, wor
   assert.doesNotMatch(start, /use `new-top-level` and log it/, "accepts top-level workers as the final state");
 });
 
+test("resume never records the hub's own name as the parent's old name", () => {
+  const start = section(read(path.join(skillDir, "SKILL.md")), "Start or resume");
+  assert.match(start, /Record `hubWorktreeOldName` only while `hubWorktree` is still ""/, "step 5 records the old name on every pass");
+  assert.match(start, /`hubWorktree` set: only re-parent its live workers/, "resume re-runs step 5 on a renamed parent");
+  assert.doesNotMatch(start, /set the parent as in step 5 and re-parent/, "resume re-records the parent's current name");
+  assert.match(start, /name already has a hub's `<Hub> · <feature>` form/, "a second hub would record the first hub's name");
+});
+
 test("cleanup restores the parent's old name when the hub closes, and upgrade sets the parent", () => {
   const closing = section(read(path.join(refDir, "cleanup.md")), "Closing the hub");
   assert.match(closing, /`hubWorktreeOldName`/, "Closing the hub does not restore the old name");
-  assert.match(closing, /early/, "the early-close path is not covered");
+  assert.match(closing, /when the developer closes the hub early/, "the early-close path is not covered");
   assert.match(read(path.join(refDir, "upgrade.md")), /`hubWorktreeOldName`/, "upgrade.md lacks the line for an older hub");
 });
 
@@ -182,5 +190,6 @@ test("the push rules name their exact forms and the allow list names its limits"
   const autonomy = section(read(path.join(skillDir, "SKILL.md")), "Autonomy levels");
   assert.match(autonomy, /`\+<ref>` are asked or refused/);
   assert.doesNotMatch(autonomy, /`\+<ref>` are refused/);
-  assert.match(autonomy, /don't ask again/, "the allow-list paragraph does not warn about a stored answer");
+  assert.match(autonomy, /"don't ask again" answer in a worker terminal is stored by Claude Code for the main checkout and outlives the worktree/,
+    "the allow-list paragraph does not warn about a stored answer");
 });
