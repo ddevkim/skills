@@ -61,7 +61,7 @@ npx skills add ddevkim/vera --skill hub
 ### Start a hub
 
 1. In an Orca terminal, discuss the feature with your agent until you agree on what to build.
-2. Invoke the skill: `/vera:hub` in Claude Code, `$hub` in Codex. In another agent, ask it to use the hub skill.
+2. Invoke the skill: `/vera:hub` in Claude Code (`/hub` when installed with `npx skills`), `$hub` in Codex. In another agent, ask it to use the hub skill.
 
 Run it from any Orca terminal: Orca's sidebar shows the hub's workspace, or the repo's main workspace when the terminal belongs to none, as one entry named after the feature with every worker beneath it, and the hub gives that workspace its old name back when it closes.
 
