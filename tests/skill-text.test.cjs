@@ -108,3 +108,41 @@ test("dashboard.md's Korean stage words are the page's ko phase labels", () => {
   const ko = JSON.parse(html.match(/ko: \{[\s\S]*?phases: (\[[^\]]*\])/)[1]);
   assert.ok(read(path.join(refDir, "dashboard.md")).includes(`stages**: ${ko.join(", ")} (English`));
 });
+
+const STOP_LIST = ["drops a column or table", "spending money", "secrets or permission scopes",
+  "unconditional force push", "`--admin`", "three rounds"];
+
+test("SKILL.md has the autonomy section with its three levels and the six stops", () => {
+  const section = read(path.join(skillDir, "SKILL.md")).match(/\n## Autonomy levels\n([\s\S]*?)(?=\n## )/);
+  assert.ok(section, "SKILL.md has no '## Autonomy levels' section");
+  for (const level of ["`low`", "`medium`", "`high`"]) assert.ok(section[1].includes(level), `no ${level}`);
+  assert.deepStrictEqual(STOP_LIST.filter((s) => !section[1].includes(s)), [], "stop list entries missing");
+});
+
+test("the worker protocol has the autonomy level slot", () => {
+  const protocol = read(path.join(refDir, "worker-spec.md")).match(/## Hub protocol[\s\S]*?\n```/)[0];
+  assert.match(protocol, /AUTONOMY: <low \| medium \| high>/);
+});
+
+test("cleanup removes and checks the allow list", () => {
+  const text = read(path.join(refDir, "cleanup.md"));
+  assert.match(text, /allow\.cjs remove/);
+  assert.match(text, /allow\.cjs check/);
+});
+
+test("the docs name the English labels of both pages", () => {
+  const html = read(path.join(skillDir, "templates", "walkthrough.html"));
+  const en = JSON.parse(html.match(/en: \{[\s\S]*?steps: (\[[^\]]*\])/)[1]);
+  assert.ok(read(path.join(refDir, "walkthrough.md")).includes(en.join(" → ")), "walkthrough.md lacks the en step labels");
+  const language = read(path.join(skillDir, "SKILL.md")).match(/\n## Language\n([\s\S]*?)(?=\n## )/)[1];
+  assert.match(language, /`templates\/dashboard\.html`[\s\S]*`templates\/walkthrough\.html`/);
+});
+
+test("dashboard.md's to-do, ask, and needs rows say how the list differs by autonomy level", () => {
+  const rows = read(path.join(refDir, "dashboard.md")).split("\n");
+  for (const start of ["| **To-do list**", "| `ask` |", "| `needs` |"]) {
+    const row = rows.find((l) => l.startsWith(start));
+    assert.ok(row, `no row ${start}`);
+    assert.match(row, /`medium`[\s\S]*`high`/, `${start} row does not name the levels`);
+  }
+});

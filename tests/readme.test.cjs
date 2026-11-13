@@ -47,3 +47,9 @@ test("LICENSE exists and README links it", () => {
   assert.ok(fs.existsSync(path.join(ROOT, "LICENSE")), "LICENSE missing");
   assert.match(readme(), /\]\(LICENSE\)/, "README does not link LICENSE");
 });
+
+test("README names the three autonomy levels and that the walkthrough page follows lang", () => {
+  const text = readme();
+  for (const level of ["Low", "Medium", "High"]) assert.match(text, new RegExp(`\\*\\*${level}\\*\\*`));
+  assert.match(text, /walkthrough page[^.\n]*`lang`|`lang`[^.\n]*walkthrough page/);
+});

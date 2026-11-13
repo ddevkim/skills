@@ -11,7 +11,7 @@ Korean strings in this file are examples for a Korean-speaking developer: write 
 | On the page, top to bottom | Comes from | You write |
 |---|---|---|
 | Header line and headline (the developer's to-do count) | `title`, `owner`, counts | `title`: the feature's name in the developer's words |
-| **To-do list**: one numbered row per thing only the developer can do, each with its link and how to answer | prompt waits (from `sync.cjs`), `needs`, open `decisions`, items in `walk`, `ready` items on `main`, `blocked` items | `ask`, `needs`, and each decision's `text`, `options`, `recommend`, `items` |
+| **To-do list**: one numbered row per thing only the developer can do, each with its link and how to answer | prompt waits (from `sync.cjs`), `needs`, open `decisions`, items in `walk`, `ready` items on `main`, `blocked` items; by autonomy level ([SKILL.md](../SKILL.md), "Autonomy levels"): at `medium` walkthroughs are not to-dos, at `high` neither walkthroughs nor merge approvals are, and the decisions you took alone are listed under their own heading | `ask`, `needs`, and each decision's `text`, `options`, `recommend`, `items` |
 | **Stage strip**: how many PRs are in each stage, 대기 → 작업 중 → 독립 리뷰 → 워크스루 대기 → PR 열림·CI → 병합 준비됨 → 병합됨 (English: Waiting → Working → Review → Walkthrough waiting → PR open · CI → Ready to merge → Merged); each id jumps to its card | item `status` | nothing more: keep `status` true |
 | What to know now | `summary` | at most 3 sentences |
 | Governing documents | `spec.md`, `protocol.md`, `refs` | `refs` |
@@ -36,13 +36,13 @@ Write every field the way you would say it to a colleague who was not here.
 | item `done` | what this PR does so far, one sentence in terms of the outcome; taken from the worker's `SUMMARY:` line at each status and rewritten when it breaks these rules; at the merge, what the PR delivered | "야간 시간대를 판정하는 함수를 만들었고 시험 6건이 통과합니다" | "green", "구현 완료" |
 | item `ext` | why the item is where it is, or what it waits for | "N2 의 PR 이 열리면 시작합니다" | "N2 PR 뒤" |
 | item `waiting` | "결정: <the question in five words>" | "결정: 야간 알림 기본값" | "ask 대기" |
-| `ask` | which to-do comes first, and why; empty with no to-do or only one (the row already says it); never a to-do the list lacks (that is `needs`) | "N1 병합을 먼저 승인해 주세요. N2 가 그 위에 쌓여 있습니다." | a list of every to-do |
+| `ask` | which to-do comes first, and why; empty with no to-do or only one (the row already says it); never a to-do the list lacks (that is `needs`); never a walkthrough at `medium`, nor a walkthrough or merge approval at `high`, where it names a stop-list hit with its reason | "N1 병합을 먼저 승인해 주세요. N2 가 그 위에 쌓여 있습니다." | a list of every to-do |
 | decision `text` | the question, then what depends on it; `options` 2-4, `recommend` one of them, `items` waiting for it | "밤 10시부터 아침 8시까지는 알림을 기본으로 끌까요? N2 의 기본값이 이 답으로 정해집니다." | "야간 기본값 TBD" |
 | decision `answer` | the developer's choice in their words | "기본으로 끈다" | "A" |
 | `summary` | what changed the plan, what is riskier or later than planned, what the developer would be surprised to learn at the merge | "N3 는 예상보다 커서 둘로 나눴습니다. 뒤쪽은 N5 입니다." | progress the stage strip already shows |
 | `log` line | "HH:MM · <item> <what happened>", newest first | "14:20 · N1 (#41) CI 가 통과해 병합 승인을 요청했습니다" | "14:20 N1 ci-green" |
 | worker `state` | a status label of two to four words (it is drawn as a pill, the one field that is not a sentence); never CI | "병합 승인 대기" | "support", "CI 통과" |
-| `needs` | what only a human can do and no status shows (a login, a secret): `text` what and where, `how` the way to do it; remove it when done | "스테이징 DB 비밀값을 N3 작업자 터미널에 넣어 주세요." | a decision, a walkthrough, a merge approval, or a prompt wait: the page lists those itself |
+| `needs` | what only a human can do and no status shows (a login, a secret): `text` what and where, `how` the way to do it; remove it when done | "스테이징 DB 비밀값을 N3 작업자 터미널에 넣어 주세요." | a decision, a walkthrough, a merge approval, or a prompt wait: the page lists those itself, by level (at `medium` and `high` it does not list walkthroughs; at `high` not merge approvals either) |
 
 ## Links: everything can be followed
 
