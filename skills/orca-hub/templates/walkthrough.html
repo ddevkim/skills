@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PR 워크스루</title>
+<title>PR walkthrough</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <!-- Non-blocking: a slow or offline font server must not hold the renderer script. -->
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
@@ -134,9 +134,81 @@ th { font-size: 13px; color: var(--text-2); font-weight: 600; }
    appends the review result and Q&A to it, and walkcheck.cjs writes <id>-w<n>.diff.js beside it. state.js (the hub's)
    gives the PR's place in the feature. Open as walkthrough.html?w=<id>-w<n>#<step>. Everything is re-read every 5 s. */
 const POLL_MS = 5000;
-const STEPS = ["목적과 의도", "구조", "실행 흐름", "구현 방식", "시험", "위험과 리뷰", "질의응답"];
-const ST_KO = { todo: "대기", active: "작업 중", review: "리뷰 중", walk: "워크스루 대기", pr: "PR 열림", ready: "병합 준비됨", merged: "병합됨", blocked: "막힘" };
-const MAP_KO = { new: "새로 만든 것", changed: "고친 것", existing: "그대로 쓰는 것" };
+/* Every text the page writes itself, per language. HUB_STATE.lang picks one ("ko" when absent or unknown).
+   Another language is one more table with the same keys. Texts that hold a number or a name are functions. */
+const L10N = {
+  ko: {
+    lang: "ko", pageTitle: "PR 워크스루", docTitle: (i, r) => `${i} 워크스루 ${r}회차`,
+    steps: ["목적과 의도", "구조", "실행 흐름", "구현 방식", "시험", "위험과 리뷰", "질의응답"],
+    st: { todo: "대기", active: "작업 중", review: "리뷰 중", walk: "워크스루 대기", pr: "PR 열림", ready: "병합 준비됨", merged: "병합됨", blocked: "막힘" },
+    map: { new: "새로 만든 것", changed: "고친 것", existing: "그대로 쓰는 것" },
+    owner: o => `<b>${o}</b>님: `, latest: "최신 회차 보기", approved: "이 회차를 승인했습니다.", mergedDot: "병합됨.",
+    changedLater: " 승인 뒤 코드가 바뀌었습니다.", askAnytime: " 궁금한 점은 언제든 허브 대화에서 물어보세요.", older: "이전 회차입니다.",
+    afterMerged: "워크스루 승인 뒤 바뀐 코드를 보여 주는 회차입니다.",
+    afterOpen: `워크스루를 승인한 뒤 코드가 바뀌었습니다. 1단계의 "승인 뒤 바뀐 코드"를 보고 병합 승인 때 함께 판단해 주세요.`,
+    walkAsk: `일곱 단계를 보고 허브 대화에서 질문하거나, 이해했으면 <b>"PR 올려"</b> 로 승인해 주세요.`,
+    prOpen: pr => `${pr} 은 이미 열려 있고, 승인 전에는 병합하지 않습니다.`, noPrYet: "승인 전에는 PR 이 만들어지지 않습니다.",
+    pending: "독립 리뷰를 통과하면 허브가 이 문서로 설명하고 PR 생성 승인을 요청합니다.",
+    removed: "삭제", positionH: "전체 기능에서 이 PR 의 자리", walkLink: "워크스루 보기",
+    changedAfter: "승인 뒤 바뀐 코드", changedSince: r => `${r}회차 이후 바뀐 것`,
+    specH: "이 PR 이 구현하는 명세", whyH: "왜 필요한가", afterH: "병합 뒤 달라지는 것", notHereH: "다른 PR 이 맡는 것",
+    noMapChange: "구조 변화 없음", noMap: "이 회차에는 구조 지도가 없습니다.", noFlow: "동작 변화 없음",
+    diffOld: "이전 형식의 회차라 변경 내용이 없습니다. PR 화면에서 보세요.",
+    diffNotYet: "이 파일의 변경 내용을 아직 만들지 않았습니다. 허브가 walkcheck 를 돌리면 나타납니다.",
+    diffOmitted: n => `변경이 ${n}줄이라 여기서는 생략합니다. PR 화면에서 보세요.`,
+    diffBinary: "글자가 아닌 파일이라 내용을 보여 줄 수 없습니다.", diffMode: "내용은 그대로이고 파일 속성만 바뀌었습니다.",
+    designH: "이렇게 만든 이유", rejected: "택하지 않은 안: ", none: "없음", dataH: "새로 저장하는 것", safe: "배포된 코드와 함께 안전한 이유: ",
+    filesH: n => `바뀐 파일 ${n}개 (누르면 아래에 변경 내용이 나옵니다)`, diffH: f => `${f} 의 변경 내용 (초록은 추가, 빨강은 삭제)`,
+    th: ["명세", "시험", "확인하는 것", "구현 전 실패"], injH: "일부러 고장 낸 실험", failed: t => `${t} 실패`, verifyH: "최종 머리에서 돌린 전체 검증",
+    risksH: "위험한 곳과 막는 장치", unverifiedH: "확인하지 못한 것", followupsH: "후속 작업",
+    reviewH: "독립 리뷰 (이 코드를 쓰지 않은 리뷰어가 본 결과)", reviewRound: (r, pass) => `${r}회차 ${pass ? "통과" : "수정 요청"}`,
+    blocking: "고쳐야 함", note: "참고", fix: "처리: ", noFindings: "지적 없음", noReview: "아직 리뷰 결과가 없습니다.",
+    noQa: "아직 질문이 없습니다. 허브 대화에서 무엇이든 물어보세요.",
+    badAddress: "주소가 올바르지 않습니다. walkthrough.html?w=&lt;작업 id&gt;-w&lt;회차&gt; 로 여세요.",
+    noWalk: id => `walkthroughs/${id}.js 를 읽지 못했습니다. 파일이 있는지, 문법 오류가 없는지 확인하세요.`,
+    back: "← 진행 현황", metaTitle: (i, r) => `PR 워크스루 · ${i} ${r}회차`, rounds: "회차",
+    broken: "데이터 파일을 읽지 못했습니다(문법 오류). 마지막으로 읽은 내용을 보여 줍니다.",
+    tFiles: "바뀐 파일", count: n => `${n}개`, tAdded: "추가한 줄", tRemoved: n => `삭제 ${n}줄`, tTests: "명세를 증명하는 시험",
+    tReview: "독립 리뷰", passed: "통과", fixing: "수정 중", waiting: "대기", round: r => `${r}회차`,
+    prev: "← 이전", next: s => `다음: ${s} →`, end: "끝"
+  },
+  en: {
+    lang: "en", pageTitle: "PR walkthrough", docTitle: (i, r) => `${i} walkthrough round ${r}`,
+    steps: ["Purpose", "Structure", "Execution flow", "How it is built", "Tests", "Risks and review", "Q&A"],
+    st: { todo: "Waiting", active: "Working", review: "In review", walk: "Walkthrough waiting", pr: "PR open", ready: "Ready to merge", merged: "Merged", blocked: "Blocked" },
+    map: { new: "New", changed: "Changed", existing: "Used as is" },
+    owner: o => `<b>${o}</b>: `, latest: "See the latest round", approved: "You approved this round.", mergedDot: "Merged.",
+    changedLater: " The code changed after approval.", askAnytime: " Ask anything in the hub chat at any time.", older: "This is an earlier round.",
+    afterMerged: "This round shows the code that changed after the walkthrough was approved.",
+    afterOpen: `The code changed after you approved the walkthrough. Read "Changed after approval" in step 1 and weigh it when you approve the merge.`,
+    walkAsk: `Read the seven steps and ask in the hub chat, or once it is clear, approve with <b>"open the PR"</b>.`,
+    prOpen: pr => `${pr} is already open and is not merged before you approve.`, noPrYet: "The PR is not created before you approve.",
+    pending: "Once the independent review passes, the hub explains this page and asks you to approve opening the PR.",
+    removed: "Removed", positionH: "Where this PR sits in the feature", walkLink: "Walkthrough",
+    changedAfter: "Changed after approval", changedSince: r => `Changed since round ${r}`,
+    specH: "Spec lines this PR implements", whyH: "Why it is needed", afterH: "What changes after the merge", notHereH: "What other PRs do",
+    noMapChange: "No change in structure", noMap: "This round has no structure map.", noFlow: "No change in behaviour",
+    diffOld: "This round uses an older format and has no diff. See it on the PR page.",
+    diffNotYet: "The diff of this file is not made yet. It appears when the hub runs walkcheck.",
+    diffOmitted: n => `The diff has ${n} lines, so it is left out here. See it on the PR page.`,
+    diffBinary: "This is not a text file, so its content cannot be shown.", diffMode: "The content is the same; only the file mode changed.",
+    designH: "Why it is built this way", rejected: "Not chosen: ", none: "None", dataH: "What it now stores", safe: "Why it is safe with the deployed code: ",
+    filesH: n => `${n} ${n === 1 ? "file" : "files"} changed (click one to see its diff below)`, diffH: f => `Diff of ${f} (green is added, red is removed)`,
+    th: ["Spec", "Test", "What it checks", "Failure before the code"], injH: "Broken on purpose", failed: t => `${t} failed`, verifyH: "Full check on the final head",
+    risksH: "Risky areas and their guards", unverifiedH: "Not verified", followupsH: "Follow-ups",
+    reviewH: "Independent review (by a reviewer who did not write this code)", reviewRound: (r, pass) => `Round ${r} ${pass ? "passed" : "changes requested"}`,
+    blocking: "Must fix", note: "Note", fix: "Fix: ", noFindings: "No findings", noReview: "No review result yet.",
+    noQa: "No questions yet. Ask anything in the hub chat.",
+    badAddress: "This address is not valid. Open it as walkthrough.html?w=&lt;item id&gt;-w&lt;round&gt;.",
+    noWalk: id => `Could not read walkthroughs/${id}.js. Check that the file exists and has no syntax error.`,
+    back: "← Progress", metaTitle: (i, r) => `PR walkthrough · ${i} round ${r}`, rounds: "Rounds",
+    broken: "Could not read the data file (syntax error). Showing the last good read.",
+    tFiles: "Files changed", count: n => `${n}`, tAdded: "Lines added", tRemoved: n => `${n} removed`, tTests: "Tests that prove the spec",
+    tReview: "Independent review", passed: "Passed", fixing: "Fixing", waiting: "Waiting", round: r => `Round ${r}`,
+    prev: "← Back", next: s => `Next: ${s} →`, end: "End"
+  }
+};
+let T = L10N.ko;
 const ID_RE = /^[A-Za-z0-9_-]+-w\d+$/;
 const app = document.getElementById("app");
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -144,8 +216,8 @@ const arr = x => Array.isArray(x) ? x : [];
 const id = new URLSearchParams(location.search).get("w") || "";
 let D = null, S = null, DIFF = null, broken = false, sel = 0, selNode = "", selFile = "", lastKey = "";
 
-const step = () => Math.min(Math.max(parseInt(location.hash.slice(1), 10) || 1, 1), STEPS.length);
-const go = n => { location.hash = "#" + Math.min(Math.max(n, 1), STEPS.length); };
+const step = () => Math.min(Math.max(parseInt(location.hash.slice(1), 10) || 1, 1), T.steps.length);
+const go = n => { location.hash = "#" + Math.min(Math.max(n, 1), T.steps.length); };
 
 // Resolves the global the file assigns, null when the file loaded but did not assign it (syntax error), undefined when it is missing.
 function load(src, global) {
@@ -174,32 +246,32 @@ const where = f => f.file ? `<span class="where">${esc(f.file)}${f.line ? ":" + 
 
 // What the developer should do with this page now, from the item's state in state.js.
 function banner() {
-  const i = me(), owner = `<b>${esc(D.owner)}</b>님: `;
+  const i = me(), owner = T.owner(esc(D.owner));
   const merged = i && i.status === "merged";
-  const latest = i && i.walkthrough && i.walkthrough !== id && walkHref(i.walkthrough) ? ` <a href="${walkHref(i.walkthrough)}">최신 회차 보기</a>` : "";
+  const latest = i && i.walkthrough && i.walkthrough !== id && walkHref(i.walkthrough) ? ` <a href="${walkHref(i.walkthrough)}">${T.latest}</a>` : "";
   if (i && i.walkApproved === id)
-    return `<div class="ask">이 회차를 승인했습니다. ${prLink(i)} ${merged ? "병합됨." : ""}${latest ? ` 승인 뒤 코드가 바뀌었습니다.${latest}` : " 궁금한 점은 언제든 허브 대화에서 물어보세요."}</div>`;
-  if (latest) return `<div class="ask">이전 회차입니다.${latest}</div>`;
+    return `<div class="ask">${T.approved} ${prLink(i)} ${merged ? T.mergedDot : ""}${latest ? `${T.changedLater}${latest}` : T.askAnytime}</div>`;
+  if (latest) return `<div class="ask">${T.older}${latest}</div>`;
   if (D.afterApproval)
-    return merged ? `<div class="ask">워크스루 승인 뒤 바뀐 코드를 보여 주는 회차입니다. ${prLink(i)} 병합됨.</div>`
-      : `<div class="ask warnbar">${owner}워크스루를 승인한 뒤 코드가 바뀌었습니다. 1단계의 "승인 뒤 바뀐 코드"를 보고 병합 승인 때 함께 판단해 주세요. ${prLink(i)}</div>`;
+    return merged ? `<div class="ask">${T.afterMerged} ${prLink(i)} ${T.mergedDot}</div>`
+      : `<div class="ask warnbar">${owner}${T.afterOpen} ${prLink(i)}</div>`;
   if (i && i.status === "walk")
-    return `<div class="ask">${owner}일곱 단계를 보고 허브 대화에서 질문하거나, 이해했으면 <b>"PR 올려"</b> 로 승인해 주세요. ${i.pr ? `${prLink(i)} 은 이미 열려 있고, 승인 전에는 병합하지 않습니다.` : "승인 전에는 PR 이 만들어지지 않습니다."}</div>`;
-  return `<div class="ask">독립 리뷰를 통과하면 허브가 이 문서로 설명하고 PR 생성 승인을 요청합니다.</div>`;
+    return `<div class="ask">${owner}${T.walkAsk} ${i.pr ? T.prOpen(prLink(i)) : T.noPrYet}</div>`;
+  return `<div class="ask">${T.pending}</div>`;
 }
 
 function changeItem(c) {
   if (typeof c === "string") return `<li>${esc(c)}</li>`;
-  return `<li><b>${esc(c.what)}</b>${c.removed ? ` <span class="pill bad">삭제</span>` : ""}${where(c)}${c.why ? `<div style="color:var(--text-2)">${esc(c.why)}</div>` : ""}</li>`;
+  return `<li><b>${esc(c.what)}</b>${c.removed ? ` <span class="pill bad">${T.removed}</span>` : ""}${where(c)}${c.why ? `<div style="color:var(--text-2)">${esc(c.why)}</div>` : ""}</li>`;
 }
 
 function position() {
   const lanes = arr(S && S.lanes).filter(l => arr(l.items).length);
   if (!lanes.length) return "";
-  return `<div class="card" style="margin-top:12px"><div class="lbl2">전체 기능에서 이 PR 의 자리${S.title ? `: ${esc(S.title)}` : ""}</div><div class="lanes">${lanes.map(l => `<div><div class="lane-h">${esc(l.name)}</div><div class="chips">${arr(l.items).map(i => {
+  return `<div class="card" style="margin-top:12px"><div class="lbl2">${T.positionH}${S.title ? `: ${esc(S.title)}` : ""}</div><div class="lanes">${lanes.map(l => `<div><div class="lane-h">${esc(l.name)}</div><div class="chips">${arr(l.items).map(i => {
     const href = i.id === D.item ? "" : walkHref(i.walkthrough);
     const cls = `chip${i.id === D.item ? " here" : ""}${i.status === "merged" ? " done" : ""}`;
-    const inner = `<span class="cid">${esc(i.id)}</span>${esc(i.title)}<span class="st">${esc(ST_KO[i.status] || "대기")}${i.pr ? ` · #${esc(i.pr)}` : ""}${href ? " · 워크스루 보기" : ""}</span>`;
+    const inner = `<span class="cid">${esc(i.id)}</span>${esc(i.title)}<span class="st">${esc(T.st[i.status] || T.st.todo)}${i.pr ? ` · #${esc(i.pr)}` : ""}${href ? ` · ${T.walkLink}` : ""}</span>`;
     return href ? `<a class="${cls}" href="${href}">${inner}</a>` : `<span class="${cls}">${inner}</span>`;
   }).join('<span class="sep">→</span>')}</div></div>`).join("")}</div></div>`;
 }
@@ -208,18 +280,18 @@ function stepPurpose() {
   const p = D.purpose || {};
   const changes = arr(D.changes);
   return `
-${changes.length ? `<div class="card" style="margin-bottom:12px"><div class="lbl2">${D.afterApproval ? "승인 뒤 바뀐 코드" : `${esc((D.round || 2) - 1)}회차 이후 바뀐 것`}</div><ul class="items">${changes.map(changeItem).join("")}</ul></div>` : ""}
+${changes.length ? `<div class="card" style="margin-bottom:12px"><div class="lbl2">${D.afterApproval ? T.changedAfter : T.changedSince(esc((D.round || 2) - 1))}</div><ul class="items">${changes.map(changeItem).join("")}</ul></div>` : ""}
 <div class="grid2">
-  <div class="card"><div class="lbl2">이 PR 이 구현하는 명세</div><ul class="items">${arr(p.spec).map(s => `<li><span class="sid">${esc(s.id)}</span>${esc(s.text)}</li>`).join("")}</ul></div>
-  <div class="card"><div class="lbl2">왜 필요한가</div><p style="margin:0 0 12px"><b>${esc(p.why)}</b></p>
-    <div class="lbl2">병합 뒤 달라지는 것</div><p style="margin:0 0 12px">${esc(p.after)}</p>
-    ${arr(p.notHere).length ? `<div class="lbl2">다른 PR 이 맡는 것</div><ul class="items">${arr(p.notHere).map(n => `<li><b>${esc(n.item)}</b> ${esc(n.what)}</li>`).join("")}</ul>` : ""}</div>
+  <div class="card"><div class="lbl2">${T.specH}</div><ul class="items">${arr(p.spec).map(s => `<li><span class="sid">${esc(s.id)}</span>${esc(s.text)}</li>`).join("")}</ul></div>
+  <div class="card"><div class="lbl2">${T.whyH}</div><p style="margin:0 0 12px"><b>${esc(p.why)}</b></p>
+    <div class="lbl2">${T.afterH}</div><p style="margin:0 0 12px">${esc(p.after)}</p>
+    ${arr(p.notHere).length ? `<div class="lbl2">${T.notHereH}</div><ul class="items">${arr(p.notHere).map(n => `<li><b>${esc(n.item)}</b> ${esc(n.what)}</li>`).join("")}</ul>` : ""}</div>
 </div>${position()}`;
 }
 
 function stepMap() {
   const m = D.map || {}, nodes = arr(m.nodes), links = arr(m.links);
-  if (!nodes.length) return `<div class="card">${D.map ? "구조 변화 없음" : "이 회차에는 구조 지도가 없습니다."}</div>`;
+  if (!nodes.length) return `<div class="card">${D.map ? T.noMapChange : T.noMap}</div>`;
   const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
   if (!byId[selNode]) selNode = (nodes.find(n => n.state !== "existing") || nodes[0]).id;
   const n = byId[selNode];
@@ -227,8 +299,8 @@ function stepMap() {
   const rel = links.filter(l => l.from === n.id || l.to === n.id);
   return `
 <div class="card"><div class="mapwrap" id="map"><svg id="wires"></svg>${arr(m.layers).map(L => `<div class="layer"><div class="lname">${esc(L)}</div><div class="lnodes">${nodes.filter(x => x.layer === L).map(x => `<button class="mnode ${esc(x.state)}${x.id === selNode ? " on" : ""}" data-n="${esc(x.id)}">${esc(x.label)}</button>`).join("")}</div></div>`).join("")}</div>
-<div class="legend"><span class="pill good">${MAP_KO.new}</span><span class="pill clay">${MAP_KO.changed}</span><span class="pill idle">${MAP_KO.existing}</span></div></div>
-<div class="card" style="margin-top:12px"><div class="lbl2">${esc(MAP_KO[n.state] || "")}</div><b>${esc(n.label)}</b>${where(n)}${role ? `<div>${esc(role)}</div>` : ""}
+<div class="legend"><span class="pill good">${T.map.new}</span><span class="pill clay">${T.map.changed}</span><span class="pill idle">${T.map.existing}</span></div></div>
+<div class="card" style="margin-top:12px"><div class="lbl2">${esc(T.map[n.state] || "")}</div><b>${esc(n.label)}</b>${where(n)}${role ? `<div>${esc(role)}</div>` : ""}
   ${rel.length ? `<ul class="items" style="margin-top:8px">${rel.map(l => `<li>${esc((byId[l.from] || {}).label)} → ${esc((byId[l.to] || {}).label)}${l.label ? `<div style="color:var(--text-2)">${esc(l.label)}</div>` : ""}</li>`).join("")}</ul>` : ""}</div>`;
 }
 
@@ -253,7 +325,7 @@ function wire() {
 
 function stepFlow() {
   const flow = arr(D.flow);
-  if (!flow.length) return `<div class="card">동작 변화 없음</div>`;
+  if (!flow.length) return `<div class="card">${T.noFlow}</div>`;
   if (sel >= flow.length) sel = 0;
   const f = flow[sel];
   const edges = arr(D.edges);
@@ -268,9 +340,9 @@ ${edges.length ? `<div class="grid2" style="margin-top:12px">${edges.map(e => `<
 function diffBlock(path) {
   const stale = DIFF && D.head && DIFF.head && !String(D.head).startsWith(DIFF.head) && !String(DIFF.head).startsWith(D.head);
   const f = DIFF && !stale ? arr(DIFF.files).find(x => x.path === path) : null;
-  if (!f) return `<p style="color:var(--text-2)">${D.map === undefined ? "이전 형식의 회차라 변경 내용이 없습니다. PR 화면에서 보세요." : "이 파일의 변경 내용을 아직 만들지 않았습니다. 허브가 walkcheck 를 돌리면 나타납니다."}</p>`;
-  if (f.omitted) return `<p style="color:var(--text-2)">변경이 ${esc(f.omitted)}줄이라 여기서는 생략합니다. PR 화면에서 보세요.</p>`;
-  if (!f.lines) return `<p style="color:var(--text-2)">${f.note === "binary" ? "글자가 아닌 파일이라 내용을 보여 줄 수 없습니다." : "내용은 그대로이고 파일 속성만 바뀌었습니다."}</p>`;
+  if (!f) return `<p style="color:var(--text-2)">${D.map === undefined ? T.diffOld : T.diffNotYet}</p>`;
+  if (f.omitted) return `<p style="color:var(--text-2)">${T.diffOmitted(esc(f.omitted))}</p>`;
+  if (!f.lines) return `<p style="color:var(--text-2)">${f.note === "binary" ? T.diffBinary : T.diffMode}</p>`;
   let a = 0, b = 0;
   const rows = f.lines.map(l => {
     const h = l.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
@@ -290,74 +362,77 @@ function stepDesign() {
   if (!files.some(f => f.path === selFile)) selFile = files.length ? files[0].path : "";
   return `
 <div class="grid2">
-  <div class="card"><div class="lbl2">이렇게 만든 이유</div><ul class="items">${arr(D.design).map(d => `<li><b>${esc(d.decision)}</b><div>${esc(d.why)}</div>${d.rejected ? `<div style="color:var(--text-2)">택하지 않은 안: ${esc(d.rejected)}</div>` : ""}${d.rule ? `<div class="mono">${esc(d.rule)}</div>` : ""}</li>`).join("") || "<li>없음</li>"}</ul>
-  ${data.length ? `<div class="lbl2" style="margin-top:14px">새로 저장하는 것</div><ul class="items">${data.map(d => `<li><span class="mono">${esc(d.table)}${d.column ? "." + esc(d.column) : ""}</span> ${esc(d.stores)}${d.safe ? `<div style="color:var(--text-2)">배포된 코드와 함께 안전한 이유: ${esc(d.safe)}</div>` : ""}</li>`).join("")}</ul>` : ""}</div>
-  <div class="card"><div class="lbl2">바뀐 파일 ${files.length}개 (누르면 아래에 변경 내용이 나옵니다)</div><div class="bars">${files.map(f => {
+  <div class="card"><div class="lbl2">${T.designH}</div><ul class="items">${arr(D.design).map(d => `<li><b>${esc(d.decision)}</b><div>${esc(d.why)}</div>${d.rejected ? `<div style="color:var(--text-2)">${T.rejected}${esc(d.rejected)}</div>` : ""}${d.rule ? `<div class="mono">${esc(d.rule)}</div>` : ""}</li>`).join("") || `<li>${T.none}</li>`}</ul>
+  ${data.length ? `<div class="lbl2" style="margin-top:14px">${T.dataH}</div><ul class="items">${data.map(d => `<li><span class="mono">${esc(d.table)}${d.column ? "." + esc(d.column) : ""}</span> ${esc(d.stores)}${d.safe ? `<div style="color:var(--text-2)">${T.safe}${esc(d.safe)}</div>` : ""}</li>`).join("")}</ul>` : ""}</div>
+  <div class="card"><div class="lbl2">${T.filesH(files.length)}</div><div class="bars">${files.map(f => {
     const a = Number(f.added) || 0, r = Number(f.removed) || 0;
     return `<button class="frow${f.path === selFile ? " on" : ""}" data-f="${esc(f.path)}"><div class="barlabel"><span><span class="mono">${esc(f.path)}</span> ${esc(f.role)}</span><span class="mono" style="white-space:nowrap">+${a} −${r}</span></div><div class="bartrack"><span class="bar add" style="width:${a / max * 100}%"></span><span class="bar del" style="width:${r / max * 100}%"></span></div></button>`;
   }).join("")}</div></div>
 </div>
-${selFile ? `<div class="card" style="margin-top:12px"><div class="codehead">${esc(selFile)} 의 변경 내용 (초록은 추가, 빨강은 삭제)</div>${diffBlock(selFile)}</div>` : ""}`;
+${selFile ? `<div class="card" style="margin-top:12px"><div class="codehead">${T.diffH(esc(selFile))}</div>${diffBlock(selFile)}</div>` : ""}`;
 }
 
 function stepTests() {
   const v = D.verify || {};
   return `
-<div class="card"><div class="tablewrap"><table><thead><tr><th>명세</th><th>시험</th><th>확인하는 것</th><th>구현 전 실패</th></tr></thead><tbody>
+<div class="card"><div class="tablewrap"><table><thead><tr>${T.th.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>
 ${arr(D.tests).map(t => `<tr><td><span class="sid">${esc(t.spec)}</span></td><td>${esc(t.test)}<div class="mono" style="color:var(--text-3)">${esc(t.file)}:${esc(t.line)}</div></td><td class="mono">${esc(t.asserts)}</td><td class="mono" style="color:var(--bad)">${esc(t.red)}</td></tr>`).join("")}
 </tbody></table></div></div>
 <div class="grid2" style="margin-top:12px">
-  <div class="card"><div class="lbl2">일부러 고장 낸 실험</div><ul class="items">${arr(D.injections).map(i => `<li><b>${esc(i.broke)}</b> → ${arr(i.red).map(r => `<span class="pill bad">${esc(r)} 실패</span>`).join(" ")}</li>`).join("") || "<li>없음</li>"}</ul></div>
-  <div class="card"><div class="lbl2">최종 머리에서 돌린 전체 검증</div><div class="mono">${esc(v.command)}</div><p style="margin:8px 0 0"><span class="pill good">${esc(v.summary)}</span></p></div>
+  <div class="card"><div class="lbl2">${T.injH}</div><ul class="items">${arr(D.injections).map(i => `<li><b>${esc(i.broke)}</b> → ${arr(i.red).map(r => `<span class="pill bad">${T.failed(esc(r))}</span>`).join(" ")}</li>`).join("") || `<li>${T.none}</li>`}</ul></div>
+  <div class="card"><div class="lbl2">${T.verifyH}</div><div class="mono">${esc(v.command)}</div><p style="margin:8px 0 0"><span class="pill good">${esc(v.summary)}</span></p></div>
 </div>`;
 }
 
 function stepRisks() {
-  const list = (lbl, xs, f) => `<div class="card"><div class="lbl2">${lbl}</div><ul class="items">${xs.length ? xs.map(f).join("") : "<li>없음</li>"}</ul></div>`;
+  const list = (lbl, xs, f) => `<div class="card"><div class="lbl2">${lbl}</div><ul class="items">${xs.length ? xs.map(f).join("") : `<li>${T.none}</li>`}</ul></div>`;
   const reviews = arr(D.review);
   return `<div class="grid2">
-  ${list("위험한 곳과 막는 장치", arr(D.risks), r => `<li><span class="pill watch">${esc(r.area)}</span> ${esc(r.guard)}</li>`)}
-  ${list("확인하지 못한 것", arr(D.unverified), u => `<li>${esc(u)}</li>`)}
-  ${arr(D.followups).length ? list("후속 작업", arr(D.followups), u => `<li>${esc(u)}</li>`) : ""}
+  ${list(T.risksH, arr(D.risks), r => `<li><span class="pill watch">${esc(r.area)}</span> ${esc(r.guard)}</li>`)}
+  ${list(T.unverifiedH, arr(D.unverified), u => `<li>${esc(u)}</li>`)}
+  ${arr(D.followups).length ? list(T.followupsH, arr(D.followups), u => `<li>${esc(u)}</li>`) : ""}
 </div>
-<div class="card" style="margin-top:12px"><div class="lbl2">독립 리뷰 (이 코드를 쓰지 않은 리뷰어가 본 결과)</div>${reviews.length ? reviews.map(r => `<div style="margin-bottom:12px"><span class="pill ${r.verdict === "PASS" ? "good" : "watch"}">${esc(r.round)}회차 ${r.verdict === "PASS" ? "통과" : "수정 요청"}</span> <span class="mono">${esc(r.head)}</span>
-  <ul class="items">${arr(r.findings).map(f => `<li><span class="pill ${f.level === "blocking" ? "bad" : "idle"}">${f.level === "blocking" ? "고쳐야 함" : "참고"}</span> ${esc(f.what)}${where(f)}${f.fix ? `<div style="color:var(--text-2)">처리: ${esc(f.fix)}</div>` : ""}</li>`).join("") || "<li>지적 없음</li>"}</ul></div>`).join("") : "아직 리뷰 결과가 없습니다."}</div>`;
+<div class="card" style="margin-top:12px"><div class="lbl2">${T.reviewH}</div>${reviews.length ? reviews.map(r => `<div style="margin-bottom:12px"><span class="pill ${r.verdict === "PASS" ? "good" : "watch"}">${T.reviewRound(esc(r.round), r.verdict === "PASS")}</span> <span class="mono">${esc(r.head)}</span>
+  <ul class="items">${arr(r.findings).map(f => `<li><span class="pill ${f.level === "blocking" ? "bad" : "idle"}">${f.level === "blocking" ? T.blocking : T.note}</span> ${esc(f.what)}${where(f)}${f.fix ? `<div style="color:var(--text-2)">${T.fix}${esc(f.fix)}</div>` : ""}</li>`).join("") || `<li>${T.noFindings}</li>`}</ul></div>`).join("") : T.noReview}</div>`;
 }
 
 function stepQa() {
   const qa = arr(D.qa);
-  if (!qa.length) return `<div class="card">아직 질문이 없습니다. 허브 대화에서 무엇이든 물어보세요.</div>`;
+  if (!qa.length) return `<div class="card">${T.noQa}</div>`;
   return `<div class="card">${qa.map(x => `<div class="qa"><div class="q">${esc(x.q)}</div><div>${esc(x.a)}</div>${arr(x.refs).length ? `<div class="refs">${arr(x.refs).map(r => `<span class="mono">${esc(r)}</span>`).join(" · ")}</div>` : ""}</div>`).join("")}</div>`;
 }
 
 function render() {
-  if (!ID_RE.test(id)) { app.innerHTML = `<div class="ask warnbar">주소가 올바르지 않습니다. walkthrough.html?w=&lt;작업 id&gt;-w&lt;회차&gt; 로 여세요.</div>`; return; }
-  if (!D) { app.innerHTML = `<div class="ask warnbar">walkthroughs/${esc(id)}.js 를 읽지 못했습니다. 파일이 있는지, 문법 오류가 없는지 확인하세요.</div>`; return; }
+  T = (S && L10N[S.lang]) || L10N.ko;
+  document.documentElement.lang = T.lang;
+  document.title = T.pageTitle;
+  if (!ID_RE.test(id)) { app.innerHTML = `<div class="ask warnbar">${T.badAddress}</div>`; return; }
+  if (!D) { app.innerHTML = `<div class="ask warnbar">${T.noWalk(esc(id))}</div>`; return; }
   const n = step();
-  document.title = `${D.item} 워크스루 ${D.round}회차`;
+  document.title = T.docTitle(D.item, D.round);
   const files = arr(D.files);
   const added = files.reduce((s, f) => s + (Number(f.added) || 0), 0), removed = files.reduce((s, f) => s + (Number(f.removed) || 0), 0);
   const i = me();
   const latest = Math.max(Number(D.round) || 1, i && ID_RE.test(String(i.walkthrough || "")) ? Number(String(i.walkthrough).split("-w").pop()) : 0);
-  const rounds = latest > 1 ? `<span class="rounds">회차${Array.from({ length: latest }, (_, k) => k + 1 === Number(D.round) ? `<b>${k + 1}</b>` : `<a href="walkthrough.html?w=${esc(D.item)}-w${k + 1}">${k + 1}</a>`).join("")}</span>` : "";
+  const rounds = latest > 1 ? `<span class="rounds">${T.rounds}${Array.from({ length: latest }, (_, k) => k + 1 === Number(D.round) ? `<b>${k + 1}</b>` : `<a href="walkthrough.html?w=${esc(D.item)}-w${k + 1}">${k + 1}</a>`).join("")}</span>` : "";
   const reviews = arr(D.review), lastReview = reviews[reviews.length - 1];
   const counts = [null, arr(D.map && D.map.nodes).length, arr(D.flow).length, files.length, arr(D.tests).length, arr(D.risks).length, arr(D.qa).length];
   const body = [stepPurpose, stepMap, stepFlow, stepDesign, stepTests, stepRisks, stepQa][n - 1]();
   app.innerHTML = `
-<div class="meta"><span><a href="dashboard.html">← 진행 현황</a> · PR 워크스루 · ${esc(D.item)} ${esc(D.round)}회차 · ${esc(D.worker)} → ${esc(D.owner)} · ${esc(D.date)}${rounds}</span><span class="mono">${esc(D.branch)} @ ${esc(D.head)} · base ${esc(D.base)} ${esc(D.baseSha)}</span></div>
-${broken ? `<div class="ask warnbar">데이터 파일을 읽지 못했습니다(문법 오류). 마지막으로 읽은 내용을 보여 줍니다.</div>` : ""}
+<div class="meta"><span><a href="dashboard.html">${T.back}</a> · ${T.metaTitle(esc(D.item), esc(D.round))} · ${esc(D.worker)} → ${esc(D.owner)} · ${esc(D.date)}${rounds}</span><span class="mono">${esc(D.branch)} @ ${esc(D.head)} · base ${esc(D.base)} ${esc(D.baseSha)}</span></div>
+${broken ? `<div class="ask warnbar">${T.broken}</div>` : ""}
 <h1>${esc(D.title)}</h1>
 ${banner()}
 <div class="tiles">
-  <div class="card tile"><div class="lbl">바뀐 파일</div><div class="num">${files.length}개</div></div>
-  <div class="card tile"><div class="lbl">추가한 줄</div><div class="num">+${added}</div><div class="tag">삭제 ${removed}줄</div></div>
-  <div class="card tile"><div class="lbl">명세를 증명하는 시험</div><div class="num">${arr(D.tests).length}개</div></div>
-  <div class="card tile"><div class="lbl">독립 리뷰</div><div class="num">${lastReview ? (lastReview.verdict === "PASS" ? "통과" : "수정 중") : "대기"}</div>${lastReview ? `<div class="tag">${esc(lastReview.round)}회차</div>` : ""}</div>
+  <div class="card tile"><div class="lbl">${T.tFiles}</div><div class="num">${T.count(files.length)}</div></div>
+  <div class="card tile"><div class="lbl">${T.tAdded}</div><div class="num">+${added}</div><div class="tag">${T.tRemoved(removed)}</div></div>
+  <div class="card tile"><div class="lbl">${T.tTests}</div><div class="num">${T.count(arr(D.tests).length)}</div></div>
+  <div class="card tile"><div class="lbl">${T.tReview}</div><div class="num">${lastReview ? (lastReview.verdict === "PASS" ? T.passed : T.fixing) : T.waiting}</div>${lastReview ? `<div class="tag">${T.round(esc(lastReview.round))}</div>` : ""}</div>
 </div>
-<ol class="path">${STEPS.map((s, k) => `<li class="step${k + 1 === n ? " on" : ""}"><a href="#${k + 1}"><span class="n">${k + 1}</span><span class="name">${s}</span>${counts[k] ? `<span class="count">${counts[k]}</span>` : ""}</a></li>`).join("")}</ol>
-<h2>${n}. ${STEPS[n - 1]}</h2>
+<ol class="path">${T.steps.map((s, k) => `<li class="step${k + 1 === n ? " on" : ""}"><a href="#${k + 1}"><span class="n">${k + 1}</span><span class="name">${s}</span>${counts[k] ? `<span class="count">${counts[k]}</span>` : ""}</a></li>`).join("")}</ol>
+<h2>${n}. ${T.steps[n - 1]}</h2>
 ${body}
-<div class="nav"><button id="prev" ${n === 1 ? "disabled" : ""}>← 이전</button><button id="next" class="main" ${n === STEPS.length ? "disabled" : ""}>다음: ${STEPS[n] ? esc(STEPS[n]) : "끝"} →</button></div>`;
+<div class="nav"><button id="prev" ${n === 1 ? "disabled" : ""}>${T.prev}</button><button id="next" class="main" ${n === T.steps.length ? "disabled" : ""}>${T.next(T.steps[n] ? esc(T.steps[n]) : T.end)}</button></div>`;
   document.getElementById("prev").onclick = () => go(n - 1);
   document.getElementById("next").onclick = () => go(n + 1);
   app.querySelectorAll(".fnode").forEach(b => b.onclick = () => { sel = Number(b.dataset.k); render(); });
@@ -372,9 +447,9 @@ async function tick() {
     if (d) { D = d; broken = false; } else if (d === null && D) broken = true;
     const x = await load(`walkthroughs/${id}.diff.js`, "HUB_DIFF");
     if (x) DIFF = x;
-    const s = await load("state.js", "HUB_STATE");
-    if (s) S = s;
   }
+  const s = await load("state.js", "HUB_STATE");
+  if (s) S = s;
   const key = JSON.stringify([D, broken, DIFF && DIFF.head, S && S.title, allItems().map(i => [i.id, i.title, i.status, i.pr, i.walkthrough, i.walkApproved])]);
   if (key !== lastKey) { lastKey = key; render(); }
 }
