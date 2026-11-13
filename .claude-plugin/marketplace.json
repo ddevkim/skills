@@ -1,0 +1,16 @@
+{
+  "name": "ddevkim-skills",
+  "owner": {
+    "name": "ddevkim"
+  },
+  "metadata": {
+    "description": "Agent skills by ddevkim"
+  },
+  "plugins": [
+    {
+      "name": "orca-hub",
+      "source": "./",
+      "description": "Build a discussed feature as PRs through Orca worker sessions, with walkthroughs and a live dashboard"
+    }
+  ]
+}
