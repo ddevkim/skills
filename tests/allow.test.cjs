@@ -247,6 +247,36 @@ test("broken JSON skips only the Claude half, and with no record check passes", 
   assert.strictEqual(l.run("check", l.wt).code, 0);
 });
 
+test("settings that are not an object, or a permission list that is not an array, skip only the Claude half", () => {
+  for (const text of ["null\n", '{"permissions":{"allow":"Bash(ls)"}}\n', "[]\n", '{"permissions":[]}\n']) {
+    const l = lab();
+    fs.mkdirSync(path.dirname(l.file));
+    fs.writeFileSync(l.file, text);
+    const r = l.run("write", l.wt, "high");
+    assert.strictEqual(r.code, 0, text);
+    assert.match(r.out, /not written: not valid JSON settings/, text);
+    assert.doesNotMatch(r.out, /\n\s+at /, `${text}: stack trace`);
+    assert.strictEqual(fs.readFileSync(l.file, "utf8"), text);
+    assert.ok(fs.existsSync(codexFiles(l.wt).rules), `${text}: the Codex half was not written`);
+  }
+});
+
+test("remove leaves a .gitignore it made when its text changed since, and says so", () => {
+  const l = lab();
+  const c = codexFiles(l.wt);
+  const ignore = path.join(l.wt, ".claude", ".gitignore");
+  assert.strictEqual(l.run("write", l.wt, "medium").code, 0);
+  fs.appendFileSync(ignore, "cache/\n");
+  fs.appendFileSync(c.ignore, "cache/\n");
+  const kept = [fs.readFileSync(ignore, "utf8"), fs.readFileSync(c.ignore, "utf8")];
+  const r = l.run("remove", l.wt);
+  assert.strictEqual(r.code, 0);
+  assert.deepStrictEqual([fs.readFileSync(ignore, "utf8"), fs.readFileSync(c.ignore, "utf8")], kept);
+  assert.match(r.out, /\.claude\/\.gitignore/);
+  assert.match(r.out, /\.codex\/\.gitignore/);
+  assert.ok(!fs.existsSync(l.file) && !fs.existsSync(c.rules), "remove left the rules");
+});
+
 test("refuses a path that is not a worktree, and broken JSON in a file it wrote, with a plain message", () => {
   const l = lab();
   const away = path.join(l.root, "away");
@@ -313,7 +343,7 @@ const CODEX_WANT = {
   "git push origin -uf HEAD:main": "forbidden", "git push --set-upstream origin HEAD --force": "forbidden",
   "git push --force-with-lease --force": "forbidden", "git push --force-with-lease -f": "forbidden",
   "git push --force-with-lease -fu": "forbidden",
-  "gh pr create --repo o/r": "prompt", "gh pr create -R o/r": "prompt", "gh pr merge 1": null,
+  "gh pr create --repo o/r": "prompt", "gh pr create -R o/r": "prompt",
   "rm -rf .git": "prompt", "rm -rf /": "prompt", "rm -r ..": "prompt", "rm -fr ~": "prompt", "rm -Rf .git/": "prompt",
   "rm -rf .": "prompt", "rm -rf ./": "prompt", "rm -rf *": "prompt", "rm -rf ./.git": "prompt", "rm -rf ./.git/": "prompt",
   "rm -rf -- /": "prompt", "rm -rf -- ~": "prompt", "rm -rf -- ..": "prompt", "rm -r -f /": "prompt",
@@ -342,6 +372,20 @@ const CODEX_WANT = {
   "git push -u origin HEAD :refs/heads/master": "prompt", "git push -u origin HEAD --no-verify +HEAD:main": "prompt",
   "git push -u origin HEAD -o ci.skip --force": "prompt", "git push -u origin HEAD --force-with-lease": "prompt",
   "git push --set-upstream origin HEAD +HEAD:main": "prompt",
+  // flags before the remote
+  "git push -d origin feat/x": "prompt", "git push --delete origin feat/x": "prompt", "git push --mirror": "prompt",
+  "git push --mirror origin": "prompt", "git push --all origin": "prompt", "git push --prune origin": "prompt",
+  "git push --no-verify origin main": "prompt", "git push -q origin HEAD:main": "prompt",
+  "git push --no-verify -u origin HEAD:main": "prompt", "git push --no-verify --force": "forbidden",
+  "git push -v -f origin HEAD": "forbidden", "git push --quiet origin --delete feat/x": "prompt",
+  "git push origin HEAD --force": "forbidden", "git push origin HEAD -f": "forbidden",
+  "git push origin -u HEAD:main": "prompt", "git push origin -u main": "prompt", "git push origin --set-upstream main": "prompt",
+  "git push origin +HEAD": "prompt", "git push -u origin HEAD +HEAD": "prompt",
+  "git push origin --force-with-lease main": "prompt", "git push --force-with-lease origin HEAD": "prompt",
+  "git push -u origin HEAD:refs/heads/main": "prompt",
+  "rm -rf ./*": "prompt", "rm -rf ../": "prompt", "rm -rf ~/": "prompt", "rm -rf -- .git": "prompt", "rm -f -r .git": "prompt",
+  "rm -rf .git .": "prompt",
+  "gh pr merge 1": "prompt", "gh pr merge 1 --admin": "prompt",
 };
 // Forms no prefix rule can name: Codex cannot say "exactly this argument list", so they keep the decision of the prefix
 // they start with. The rules file header names each kind; a change here means the header must change too.
@@ -351,6 +395,10 @@ const CODEX_GAPS = {
   "git push -u origin HEAD --force-with-lease=main +HEAD:main": "allow",
   "gh pr create --title x --repo o/r": "allow", "gh pr create -Ro/r": "allow", "gh pr create --repo=o/r": "allow",
   "git -C . push --force": null, "git push upstream main": null, "rm -rf ../x": null, "rm -rf src ..": null,
+  "git push -o ci.skip origin main": null, "rm -rf /tmp/x": null, "git push origin feat/x --force": null,
+  "git push -fuq origin HEAD": null, "git push --force-with-lease -fuq": "allow", "rm --recursive --force .git": null,
+  "rm -rfv .git": null, "git push origin main:main": null,
+  "git push": null, "git push origin": null, "git push origin HEAD": null,
 };
 
 test("medium and high also write Codex rules kept out of git, and low takes them out", () => {
@@ -375,7 +423,9 @@ test("the Codex rules give each command the decision the protocol needs", () => 
   assert.match(text, /anything appended after an allowed prefix also runs/);
   assert.match(text, /exactly this argument list/, "the header does not say why the allow rules cannot be narrower");
   for (const gap of ["git -C . push --force", "other than origin", "rm -rf src ..", "$", "HEAD~3:main", "feat/a +HEAD:main",
-    ":feat/x", "--force-with-lease=main", "../x"]) assert.ok(text.includes(gap), `header does not name ${gap}`);
+    ":feat/x", "--force-with-lease=main", "../x", "git push -o ci.skip origin main", "any absolute path other than / itself (rm -rf /tmp/x)",
+    "git push origin feat/x --force", "longer bundled short flags (-fuq)", "--recursive --force", "push.default"])
+    assert.ok(text.includes(gap), `header does not name ${gap}`);
   const got = Object.fromEntries(Object.keys(CODEX_WANT).map((cmd) => [cmd, decide(rules, cmd)]));
   assert.deepStrictEqual(got, CODEX_WANT);
   const gaps = Object.fromEntries(Object.keys(CODEX_GAPS).map((cmd) => [cmd, decide(rules, cmd)]));
