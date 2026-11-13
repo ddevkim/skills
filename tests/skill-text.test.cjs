@@ -61,6 +61,10 @@ test("nothing under skills/ holds only on the author's machine", () => {
         if (rel === "skills/orca-hub/templates/state.js" && p.startsWith("/Users/me/")) continue;
         found.push(`${rel}:${i + 1}: ${p}`);
       }
+      for (const [p] of line.matchAll(/(?:~|\$HOME|\$\{HOME\})\/[^\s"'`)]*/g)) {
+        if (rel === "skills/orca-hub/SKILL.md" && p === "~/orca/workspaces/<repo>") continue; // Orca's documented default
+        found.push(`${rel}:${i + 1}: ${p}`);
+      }
       for (const [w] of line.matchAll(/noslop|ddevkim|jaemin/gi)) found.push(`${rel}:${i + 1}: ${w}`);
     });
   }
@@ -89,4 +93,18 @@ test("the frontmatter parses, keeps the skill direct-invocation only, and is lan
   assert.ok(f.description && f.description.trim(), "description is empty");
   assert.strictEqual(f["disable-model-invocation"], "true");
   assert.doesNotMatch(f.description, HANGUL, "description relies on Korean trigger words");
+});
+
+test("the protocol slots the language section names exist in worker-spec.md", () => {
+  const section = read(path.join(skillDir, "SKILL.md")).match(/\n## Language\n([\s\S]*?)(?=\n## )/)[1];
+  const spec = read(path.join(refDir, "worker-spec.md"));
+  const slots = [...section.matchAll(/`(<[^`>]*language[^`>]*>)`/g)].map((m) => m[1]);
+  assert.ok(slots.length > 0, "the language section names no protocol slot");
+  assert.deepStrictEqual(slots.filter((s) => !spec.includes(s)), []);
+});
+
+test("dashboard.md's Korean stage words are the page's ko phase labels", () => {
+  const html = read(path.join(skillDir, "templates", "dashboard.html"));
+  const ko = JSON.parse(html.match(/ko: \{[\s\S]*?phases: (\[[^\]]*\])/)[1]);
+  assert.ok(read(path.join(refDir, "dashboard.md")).includes(`stages**: ${ko.join(", ")} (English`));
 });

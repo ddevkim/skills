@@ -14,7 +14,7 @@ window.HUB_STATE = {
   hubWorktree: "/Users/me/orca/workspaces/app/hub-notify",  // the hub session's Orca workspace ("" outside one): workers are its children
   lastMsgId: "",             // id of the last Orca message handled: resume handles the inbox messages after it
   v: 2,                      // layout version: review before walkthrough. A state.js without it is upgraded first (references/upgrade.md)
-  lang: "ko",                // "ko" or "en": the language of the page's own labels; the hub writes its sentences in the same language
+  lang: "ko",                // "ko" or "en": the page's own labels; the hub's sentences follow SKILL.md, "Language"
   closed: false,             // true after the final sweep: sync.cjs exits, the page shows the run as finished
   // Every sentence in this file is read by the developer: write it by references/dashboard.md.
   // ask: one sentence saying which of the developer's to-dos comes first and why. Empty with no to-do or only one.

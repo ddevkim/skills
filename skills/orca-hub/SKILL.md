@@ -33,7 +33,7 @@ The developer's language is the language they write to you in. This section is t
 
 - **The developer's language**, always, for what only the developer reads: the dashboard, walkthrough sentences, your messages, reports, and questions, and the workers' `SUMMARY:` lines.
 - **The repo's convention** for what stays in the repo: PR bodies, commit messages, and PR comments. Take it from the repo's rule documents, then its recent PRs and commits; with none, the developer's language. This is the **PR language**.
-- **`lang`**: when you build the folder, write `lang` into `state.js`: `"ko"` when the developer writes Korean, `"en"` for any other language. It sets the pages' own labels; a `state.js` without it renders in Korean. Fill `protocol.md`'s `<language>` slots by the same rules, and the reviewer brief's "Write in" slot with the PR language.
+- **`lang`**: when you build the folder, write `lang` into `state.js`: `"ko"` when the developer writes Korean, `"en"` for any other language. It sets the pages' own labels; a `state.js` without it renders in Korean. Fill `protocol.md`'s `<PR language>` and `<the developer's language>` slots by the same rules, and the reviewer brief's "Write in" slot with the PR language.
 - Korean strings in this file are examples, as in the references: write the same meaning in the developer's language. A phrase the developer types ("W1 병합해", "나중에", "버려") is a recognition example: the same intent in any language counts. A quoted page label is the Korean one; the `en` table in `templates/dashboard.html` has the English one.
 
 ## Hub folder
@@ -55,7 +55,7 @@ The developer's language is the language they write to you in. This section is t
 
 ## Start or resume
 
-1. **Find the hub.** If you do not know the feature slug (a new session), list `<root>/_hub/*/state.js` and keep the ones without `closed: true`: one is this hub; several, ask the developer which; none, this is a new hub. A new hub: run `node <this skill's folder>/scripts/preflight.cjs` before anything else. If it prints `missing:` lines, relay every one to the developer in their language and stop until they say it is fixed; then run it again. When it prints one `ok:` line, go to step 2.
+1. **Find the hub.** On Claude Code a hub is resumed by invoking this skill by name: it never starts from a description match. If you do not know the feature slug (a new session), list `<root>/_hub/*/state.js` and keep the ones without `closed: true`: one is this hub; several, ask the developer which; none, this is a new hub. A new hub: run `node <this skill's folder>/scripts/preflight.cjs` before anything else. If it prints `missing:` lines, relay every one to the developer in their language and stop until they say it is fixed; then run it again. When it prints one `ok:` line, go to step 2.
    **Resume** an existing hub:
    - Read `state.js` and `spec.md`. No `v: 2` or no `hubWorktree` field in `state.js`: it was built by an older version of this skill; upgrade it first ([references/upgrade.md](references/upgrade.md)). Otherwise copy `dashboard.html`, `sync.cjs`, `walkthrough.html`, and `walkcheck.cjs` from `templates/` again (they are never edited, so this only brings them up to date). If `sync.cjs` changed, stop the running copy with `kill "$(cat <hub>/sync.pid)"`; starting a new one while it runs does nothing.
    - Run `node <this skill's folder>/scripts/preflight.cjs` and handle its `missing:` lines as for a new hub, before `run-use`.
