@@ -177,3 +177,20 @@ test("C5 the page script has no Korean literal outside the ko table", () => {
   const hit = rest.match(new RegExp(`.{0,40}${HANGUL.source}.{0,40}`));
   assert.ok(!hit, `Korean literal outside the table: ${hit && hit[0]}`);
 });
+
+test("the PR stage label matches the dashboard's stage strip in both languages", async () => {
+  const dash = fs.readFileSync(path.join(ROOT, "skills/orca-hub/templates/dashboard.html"), "utf8");
+  const ctx = { document: { getElementById: () => ({}) } };
+  vm.createContext(ctx);
+  const src = scriptOf(dash);
+  const dl = vm.runInContext(src.slice(src.indexOf("const L10N"), src.indexOf("let T = ")) + ";L10N", ctx);
+  const wl = (await show(current(), VARIANTS.walk, "en")).table;
+  for (const lang of ["ko", "en"]) assert.strictEqual(wl[lang].st.pr, dl[lang].stage.pr, lang);
+});
+
+test("changing only lang in state.js redraws the open page", async () => {
+  const s = lane("walk", { walkthrough: ID });
+  const r = await render(current(), { w: ID, hash: 1, files: { [`walkthroughs/${ID}.js`]: [FULL], [`walkthroughs/${ID}.diff.js`]: [DIFF], "state.js": [{ ...s, lang: "ko" }, { ...s, lang: "en" }] } });
+  assert.strictEqual(r.lang, "en");
+  assert.strictEqual(r.title, "A4 walkthrough round 2");
+});

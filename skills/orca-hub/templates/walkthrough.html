@@ -140,7 +140,7 @@ const L10N = {
   ko: {
     lang: "ko", pageTitle: "PR 워크스루", docTitle: (i, r) => `${i} 워크스루 ${r}회차`,
     steps: ["목적과 의도", "구조", "실행 흐름", "구현 방식", "시험", "위험과 리뷰", "질의응답"],
-    st: { todo: "대기", active: "작업 중", review: "리뷰 중", walk: "워크스루 대기", pr: "PR 열림", ready: "병합 준비됨", merged: "병합됨", blocked: "막힘" },
+    st: { todo: "대기", active: "작업 중", review: "리뷰 중", walk: "워크스루 대기", pr: "PR 열림·CI", ready: "병합 준비됨", merged: "병합됨", blocked: "막힘" },
     map: { new: "새로 만든 것", changed: "고친 것", existing: "그대로 쓰는 것" },
     owner: o => `<b>${o}</b>님: `, latest: "최신 회차 보기", approved: "이 회차를 승인했습니다.", mergedDot: "병합됨.",
     changedLater: " 승인 뒤 코드가 바뀌었습니다.", askAnytime: " 궁금한 점은 언제든 허브 대화에서 물어보세요.", older: "이전 회차입니다.",
@@ -175,7 +175,7 @@ const L10N = {
   en: {
     lang: "en", pageTitle: "PR walkthrough", docTitle: (i, r) => `${i} walkthrough round ${r}`,
     steps: ["Purpose", "Structure", "Execution flow", "How it is built", "Tests", "Risks and review", "Q&A"],
-    st: { todo: "Waiting", active: "Working", review: "In review", walk: "Walkthrough waiting", pr: "PR open", ready: "Ready to merge", merged: "Merged", blocked: "Blocked" },
+    st: { todo: "Waiting", active: "Working", review: "In review", walk: "Walkthrough waiting", pr: "PR open · CI", ready: "Ready to merge", merged: "Merged", blocked: "Blocked" },
     map: { new: "New", changed: "Changed", existing: "Used as is" },
     owner: o => `<b>${o}</b>: `, latest: "See the latest round", approved: "You approved this round.", mergedDot: "Merged.",
     changedLater: " The code changed after approval.", askAnytime: " Ask anything in the hub chat at any time.", older: "This is an earlier round.",
@@ -450,7 +450,7 @@ async function tick() {
   }
   const s = await load("state.js", "HUB_STATE");
   if (s) S = s;
-  const key = JSON.stringify([D, broken, DIFF && DIFF.head, S && S.title, allItems().map(i => [i.id, i.title, i.status, i.pr, i.walkthrough, i.walkApproved])]);
+  const key = JSON.stringify([D, broken, DIFF && DIFF.head, S && S.title, S && S.lang, allItems().map(i => [i.id, i.title, i.status, i.pr, i.walkthrough, i.walkApproved])]);
   if (key !== lastKey) { lastKey = key; render(); }
 }
 window.addEventListener("hashchange", () => { sel = 0; render(); window.scrollTo(0, 0); });
