@@ -6,7 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFileSync, spawnSync } = require("node:child_process");
 
-const WALKCHECK = path.join(__dirname, "..", "skills", "orca-hub", "templates", "walkcheck.cjs");
+const WALKCHECK = path.join(__dirname, "..", "skills", "hub", "templates", "walkcheck.cjs");
 // Ignore the machine's git config (signing, hooks, default branch) so the run is the same locally and on CI.
 const env = { ...process.env, GIT_CONFIG_GLOBAL: os.devNull, GIT_CONFIG_NOSYSTEM: "1",
   GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.com" };

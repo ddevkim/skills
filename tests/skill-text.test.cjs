@@ -1,4 +1,4 @@
-// Keeps the orca-hub instructions portable: every path they name exists, nothing
+// Keeps the hub instructions portable: every path they name exists, nothing
 // in them holds only on the author's machine, and the language rules stay in place.
 const test = require("node:test");
 const assert = require("node:assert");
@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.join(__dirname, "..");
-const skillDir = path.join(root, "skills", "orca-hub");
+const skillDir = path.join(root, "skills", "hub");
 const refDir = path.join(skillDir, "references");
 const HANGUL = /[가-힣]/;
 const EXAMPLE_NOTE = "Korean strings in this file are examples";
@@ -58,11 +58,11 @@ test("nothing under skills/ holds only on the author's machine", () => {
     const rel = path.relative(root, file);
     read(file).split("\n").forEach((line, i) => {
       for (const [p] of line.matchAll(/\/(?:Users|home)\/[^\s"'`)]+/g)) {
-        if (rel === "skills/orca-hub/templates/state.js" && p.startsWith("/Users/me/")) continue;
+        if (rel === "skills/hub/templates/state.js" && p.startsWith("/Users/me/")) continue;
         found.push(`${rel}:${i + 1}: ${p}`);
       }
       for (const [p] of line.matchAll(/(?:~|\$HOME|\$\{HOME\})\/[^\s"'`)]*/g)) {
-        if (rel === "skills/orca-hub/SKILL.md" && p === "~/orca/workspaces/<repo>") continue; // Orca's documented default
+        if (rel === "skills/hub/SKILL.md" && p === "~/orca/workspaces/<repo>") continue; // Orca's documented default
         found.push(`${rel}:${i + 1}: ${p}`);
       }
       for (const [w] of line.matchAll(/noslop|ddevkim|jaemin/gi)) found.push(`${rel}:${i + 1}: ${w}`);
@@ -89,7 +89,9 @@ test("each reference with Korean text says its Korean strings are examples", () 
 
 test("the frontmatter parses, keeps the skill direct-invocation only, and is language-neutral", () => {
   const f = frontmatter();
-  assert.strictEqual(f.name, "orca-hub");
+  assert.strictEqual(f.name, "hub");
+  assert.match(f.description, /^Use when the developer invokes \/vera:hub or \$hub /);
+  assert.match(read(path.join(skillDir, "SKILL.md")), /^# Vera hub$/m);
   assert.ok(f.description && f.description.trim(), "description is empty");
   assert.strictEqual(f["disable-model-invocation"], "true");
   assert.doesNotMatch(f.description, HANGUL, "description relies on Korean trigger words");
@@ -244,13 +246,13 @@ test("the close leaves a parent another open hub still shows under", () => {
 test("Codex workers get the allow list, push only in the forms their prefix rules can name, and report refusals", () => {
   const autonomy = section(read(path.join(skillDir, "SKILL.md")), "Autonomy levels");
   assert.doesNotMatch(autonomy, /Codex workers keep prompting/, "the allow list still says Codex gets nothing");
-  assert.match(autonomy, /`<worktree>\/\.codex\/rules\/orca-hub\.rules`/);
+  assert.match(autonomy, /`<worktree>\/\.codex\/rules\/vera-hub\.rules`/);
   assert.match(autonomy, /Codex refuses a `prompt` command instead of asking/);
   assert.doesNotMatch(section(read(path.join(skillDir, "SKILL.md")), "Start or resume"), /with a Claude worker, create the worktree first/,
     "step 6 writes the allow list for Claude workers only");
   const rule13 = read(path.join(refDir, "worker-spec.md")).split("\n").find((l) => l.startsWith("13. ")) || "";
   assert.match(rule13, /As a Codex worker[^.]*`git push -u origin HEAD` in place of the bare `git push` in rules 6d, 6e and 11, and `git push --force-with-lease` after a rebase/);
-  assert.match(read(path.join(refDir, "cleanup.md")), /':!\.codex\/rules\/orca-hub\.rules'/);
+  assert.match(read(path.join(refDir, "cleanup.md")), /':!\.codex\/rules\/vera-hub\.rules'/);
 });
 
 test("the Codex rules are described as prefixes that also allow what follows, and refusals go to the developer", () => {

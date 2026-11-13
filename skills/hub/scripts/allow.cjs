@@ -4,7 +4,7 @@
 //   node allow.cjs write <worktree> <low|medium|high>   low removes what an earlier write added
 //   node allow.cjs remove <worktree>
 //   node allow.cjs check <worktree>                      exit 1 while anything it wrote is still there
-// It writes only <worktree>/.claude/settings.local.json, <worktree>/.codex/rules/orca-hub.rules, a
+// It writes only <worktree>/.claude/settings.local.json, <worktree>/.codex/rules/vera-hub.rules, a
 // .gitignore in each of .claude and .codex that keeps them out of git, and a record in the worktree's git
 // dir. It never sets a permission mode and never reads or writes user settings. write exits 1 only when it
 // wrote neither half.
@@ -48,50 +48,50 @@ const PRE = [...UP, ...LEAD];
 const TARGET = [...MAIN, ...WIDE, "+HEAD"];
 const RM_FLAGS = ["-r", "-rf", "-fr", "-R", "-Rf", "-fR"];
 const RM_PATHS = ["~", "..", ".", ".git", "./.git"].flatMap((p) => [p, `${p}/`, `${p}/*`]).concat(["/", "/*", "*", ".*", "./.*"]);
-const NO_FORCE = "orca-hub: no plain force push; use git push --force-with-lease";
+const NO_FORCE = "vera hub: no plain force push; use git push --force-with-lease";
 const CODEX_RULES = [
-  { pattern: ["git", "push", "-u", "origin", "HEAD"], decision: "allow", justification: "orca-hub: the push workers use",
+  { pattern: ["git", "push", "-u", "origin", "HEAD"], decision: "allow", justification: "vera hub: the push workers use",
     match: ["git push -u origin HEAD"], not_match: ["git push -u origin HEAD:main", "git push origin HEAD"] },
   { pattern: ["git", "push", PRE, "origin", "HEAD", [...TARGET, ...EXTRA]], decision: "prompt",
-    justification: "orca-hub: workers push origin HEAD with nothing after it",
+    justification: "vera hub: workers push origin HEAD with nothing after it",
     match: ["git push -u origin HEAD +HEAD:main", "git push --set-upstream origin HEAD --delete main"], not_match: ["git push -u origin HEAD"] },
-  { pattern: ["git", "push", "--force-with-lease"], decision: "allow", justification: "orca-hub: the push after a rebase",
+  { pattern: ["git", "push", "--force-with-lease"], decision: "allow", justification: "vera hub: the push after a rebase",
     match: ["git push --force-with-lease"], not_match: ["git push --force"] },
   { pattern: ["git", "push", "--force-with-lease", ["origin", "--repo", "--repo=origin", ...UP, ...WIDE, ...EXTRA, ...MAIN]],
-    decision: "prompt", justification: "orca-hub: workers push --force-with-lease with nothing after it",
+    decision: "prompt", justification: "vera hub: workers push --force-with-lease with nothing after it",
     match: ["git push --force-with-lease origin main", "git push --force-with-lease -u origin HEAD:main"], not_match: ["git push --force-with-lease"] },
-  { pattern: ["gh", "pr", "create"], decision: "allow", justification: "orca-hub: opening the item's PR",
+  { pattern: ["gh", "pr", "create"], decision: "allow", justification: "vera hub: opening the item's PR",
     match: ["gh pr create --base feat/a --title t"], not_match: ["gh pr merge 1"] },
   { pattern: ["gh", "pr", "create", ["--repo", "-R"]], decision: "prompt",
-    justification: "orca-hub: a PR in another repo needs the developer",
+    justification: "vera hub: a PR in another repo needs the developer",
     match: ["gh pr create --repo o/r", "gh pr create -R o/r"], not_match: ["gh pr create --base feat/a"] },
-  { pattern: ["gh", "pr", "merge"], decision: "prompt", justification: "orca-hub: workers never merge; the hub does, from its own session",
+  { pattern: ["gh", "pr", "merge"], decision: "prompt", justification: "vera hub: workers never merge; the hub does, from its own session",
     match: ["gh pr merge 1", "gh pr merge 1 --admin"], not_match: ["gh pr create --title t"] },
   { pattern: ["rm", RM_FLAGS, RM_PATHS], decision: "prompt",
-    justification: "orca-hub: this rm may leave the worktree, delete it, or delete its git link",
+    justification: "vera hub: this rm may leave the worktree, delete it, or delete its git link",
     match: ["rm -rf /", "rm -r ..", "rm -fr ~", "rm -rf .git", "rm -rf .", "rm -rf ./.git"], not_match: ["rm -rf src", "rm notes.txt"] },
   { pattern: ["rm", [...RM_FLAGS, "-f"], ["--", "-r", "-R", "-f"], RM_PATHS], decision: "prompt",
-    justification: "orca-hub: this rm may leave the worktree, delete it, or delete its git link",
+    justification: "vera hub: this rm may leave the worktree, delete it, or delete its git link",
     match: ["rm -rf -- /", "rm -r -f /"], not_match: ["rm -rf -- src"] },
   { pattern: ["git", "push", "origin", [...TARGET, "--force-with-lease"]], decision: "prompt",
-    justification: "orca-hub: a push to main or master, or a wider push, needs the developer",
+    justification: "vera hub: a push to main or master, or a wider push, needs the developer",
     match: ["git push origin main", "git push origin HEAD:refs/heads/master", "git push origin --delete main"], not_match: ["git push origin feat/a"] },
   { pattern: ["git", "push", "origin", PRE, TARGET], decision: "prompt",
-    justification: "orca-hub: a push to main or master, or a wider push, needs the developer",
+    justification: "vera hub: a push to main or master, or a wider push, needs the developer",
     match: ["git push origin -u HEAD:main", "git push origin --no-verify main"], not_match: ["git push origin -u feat/a"] },
   { pattern: ["git", "push", "origin", "HEAD", TARGET], decision: "prompt",
-    justification: "orca-hub: a push to main or master, or a wider push, needs the developer",
+    justification: "vera hub: a push to main or master, or a wider push, needs the developer",
     match: ["git push origin HEAD --delete feat/x", "git push origin HEAD :main"], not_match: ["git push origin HEAD"] },
-  { pattern: ["git", "push", WIDE], decision: "prompt", justification: "orca-hub: a wider push needs the developer",
+  { pattern: ["git", "push", WIDE], decision: "prompt", justification: "vera hub: a wider push needs the developer",
     match: ["git push -d origin feat/x", "git push --mirror"], not_match: ["git push -u origin HEAD"] },
   { pattern: ["git", "push", PRE, [...WIDE, "--force-with-lease"]], decision: "prompt",
-    justification: "orca-hub: a wider push, or a lease after another flag, needs the developer",
+    justification: "vera hub: a wider push, or a lease after another flag, needs the developer",
     match: ["git push -u --delete origin feat/x", "git push --no-verify --force-with-lease origin main"], not_match: ["git push -u origin HEAD"] },
   { pattern: ["git", "push", PRE, "origin", TARGET], decision: "prompt",
-    justification: "orca-hub: a push to main or master, or a wider push, needs the developer",
+    justification: "vera hub: a push to main or master, or a wider push, needs the developer",
     match: ["git push -u origin main", "git push --no-verify origin main"], not_match: ["git push -u origin HEAD"] },
   { pattern: ["git", "push", PRE, PRE, "origin", TARGET], decision: "prompt",
-    justification: "orca-hub: a push to main or master, or a wider push, needs the developer",
+    justification: "vera hub: a push to main or master, or a wider push, needs the developer",
     match: ["git push --no-verify -u origin HEAD:main", "git push -u --no-verify origin HEAD:main"], not_match: ["git push --no-verify -u origin HEAD"] },
   { pattern: ["git", "push", FORCE], decision: "forbidden", justification: NO_FORCE,
     match: ["git push --force", "git push -f origin x", "git push -fu origin HEAD"], not_match: ["git push --force-with-lease"] },
@@ -117,7 +117,7 @@ const CODEX_RULES = [
   { pattern: ["git", "push", "--force-with-lease", FORCE], decision: "forbidden", justification: NO_FORCE,
     match: ["git push --force-with-lease -f", "git push --force-with-lease -fu"], not_match: ["git push --force-with-lease origin"] },
 ];
-const CODEX_TEXT = `# orca-hub allow.cjs: written for one worker and removed with its allow list.
+const CODEX_TEXT = `# vera hub allow.cjs: written for one worker and removed with its allow list.
 # Codex matches only the start of a command's argument list, so these rules are best-effort and weaker than
 # the Claude rules beside them, and anything appended after an allowed prefix also runs. Codex cannot say
 # "exactly this argument list", so the allow rules cannot be narrower: the prompt rules name the common words
@@ -138,8 +138,8 @@ const CODEX_TEXT = `# orca-hub allow.cjs: written for one worker and removed wit
 
 ` + CODEX_RULES.map((r) => `prefix_rule(\n${Object.entries(r).map(([k, v]) => `    ${k} = ${JSON.stringify(v)},\n`).join("")})\n`).join("\n");
 const LEVELS = { low: false, medium: true, high: true };
-const IGNORE = "# orca-hub allow.cjs: removed with its allow list\nsettings.local.json\n.gitignore\n";
-const CODEX_IGNORE = "# orca-hub allow.cjs: removed with its allow list\nrules/orca-hub.rules\n.gitignore\n";
+const IGNORE = "# vera hub allow.cjs: removed with its allow list\nsettings.local.json\n.gitignore\n";
+const CODEX_IGNORE = "# vera hub allow.cjs: removed with its allow list\nrules/vera-hub.rules\n.gitignore\n";
 
 const [cmd, arg, level] = process.argv.slice(2);
 if (!arg || !["write", "remove", "check"].includes(cmd) || (cmd === "write" && !(level in LEVELS))) {
@@ -153,12 +153,12 @@ const file = path.join(dir, "settings.local.json");
 const ignore = path.join(dir, ".gitignore");
 const codexDir = path.join(wt, ".codex");
 const rulesDir = path.join(codexDir, "rules");
-const rulesFile = path.join(rulesDir, "orca-hub.rules");
+const rulesFile = path.join(rulesDir, "vera-hub.rules");
 const codexIgnore = path.join(codexDir, ".gitignore");
 const git = (...args) => spawnSync("git", ["-C", wt, ...args], { encoding: "utf8" });
 const top = git("rev-parse", "--show-toplevel").stdout.trim();
 if (!top || fs.realpathSync(top) !== fs.realpathSync(wt)) fail(2, `not a git worktree root: ${wt}`);
-const record = path.join(git("rev-parse", "--absolute-git-dir").stdout.trim(), "orca-hub-allow.json");
+const record = path.join(git("rev-parse", "--absolute-git-dir").stdout.trim(), "vera-hub-allow.json");
 // lstat, not existsSync: existsSync follows a link, so a dangling one would pass and a write would land at its target.
 // A symlink or broken JSON stops only the half whose files hold it: write skips that half, remove refuses only
 // for a half the record says was written, and check never reads through a link.

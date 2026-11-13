@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const SCRIPT = path.join(__dirname, "..", "skills", "orca-hub", "scripts", "preflight.cjs");
+const SCRIPT = path.join(__dirname, "..", "skills", "hub", "scripts", "preflight.cjs");
 
 const OK = {
   git: 'echo "git version 2.40.0"',

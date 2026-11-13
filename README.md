@@ -1,18 +1,18 @@
-# ddevkim skills
+# Vera
 
-Agent skills shared by ddevkim. More skills may be added; orca-hub is the first.
+Vera is a set of agent skills by ddevkim for work that is verified before it is called done: built test-first, reviewed independently, and checked on its final state. *Vera* is Latin for "true things", as in verify and verdict. `hub` is the first skill; more may be added.
 
 | Skill | What it does |
 |---|---|
-| [orca-hub](skills/orca-hub) | Builds a feature you discussed with your agent as small PRs through Orca worker sessions, with an independent review, a walkthrough of each PR, and a live dashboard. |
+| [hub](skills/hub) | Builds a feature you discussed with your agent as small PRs through Orca worker sessions, with an independent review, a walkthrough of each PR, and a live dashboard. |
 
-## orca-hub
+## hub
 
 ### What it does
 
-You discuss a feature with Claude Code or Codex, then invoke orca-hub. Your session becomes the hub: it writes the spec, splits the work into small PRs, and starts one Orca worker per PR in its own worktree. Each worker builds its PR test-first, an independent reviewer checks it, and the hub walks you through the code before the PR opens. A dashboard in an Orca tab shows every PR, its status, and what you need to do next.
+You discuss a feature with Claude Code or Codex, then invoke the hub. Your session becomes the hub: it writes the spec, splits the work into small PRs, and starts one Orca worker per PR in its own worktree. Each worker builds its PR test-first, an independent reviewer checks it, and the hub walks you through the code before the PR opens. A dashboard in an Orca tab shows every PR, its status, and what you need to do next.
 
-![The orca-hub dashboard with to-dos, the stage strip, and PR cards](docs/dashboard.png)
+![The Vera hub dashboard with to-dos, the stage strip, and PR cards](docs/dashboard.png)
 
 ### When a hub is worth it
 
@@ -39,29 +39,29 @@ It prints one `missing:` line per problem. A missing `orchestration` skill comes
 Claude Code:
 
 ```sh
-claude plugin marketplace add ddevkim/skills
-claude plugin install orca-hub@ddevkim-skills
+claude plugin marketplace add ddevkim/vera
+claude plugin install vera@vera
 ```
 
-Inside a Claude Code session: `/plugin marketplace add ddevkim/skills`, then `/plugin install orca-hub@ddevkim-skills`.
+Inside a Claude Code session: `/plugin marketplace add ddevkim/vera`, then `/plugin install vera@vera`.
 
 Codex:
 
 ```sh
-codex plugin marketplace add ddevkim/skills
-codex plugin add orca-hub@ddevkim-skills
+codex plugin marketplace add ddevkim/vera
+codex plugin add vera@vera
 ```
 
 Other agents, with the `skills` CLI:
 
 ```sh
-npx skills add ddevkim/skills --skill orca-hub
+npx skills add ddevkim/vera --skill hub
 ```
 
 ### Start a hub
 
 1. In an Orca terminal, discuss the feature with your agent until you agree on what to build.
-2. Invoke the skill: `/orca-hub:orca-hub` in Claude Code. In Codex or another agent, ask it to use the orca-hub skill.
+2. Invoke the skill: `/vera:hub` in Claude Code (`/hub` when installed with `npx skills`), `$hub` in Codex. In another agent, ask it to use the hub skill.
 
 Run it from any Orca terminal: Orca's sidebar shows the hub's workspace, or the repo's main workspace when the terminal belongs to none, as one entry named after the feature with every worker beneath it, and the hub gives that workspace its old name back when it closes.
 
@@ -85,21 +85,21 @@ The dashboard and the walkthrough page show their labels in Korean or English, f
 Claude Code (restart the session after):
 
 ```sh
-claude plugin marketplace update ddevkim-skills
-claude plugin update orca-hub@ddevkim-skills
+claude plugin marketplace update vera
+claude plugin update vera@vera
 ```
 
 Codex:
 
 ```sh
-codex plugin marketplace upgrade ddevkim-skills
-codex plugin add orca-hub@ddevkim-skills
+codex plugin marketplace upgrade vera
+codex plugin add vera@vera
 ```
 
 npx skills:
 
 ```sh
-npx skills update orca-hub
+npx skills update hub
 ```
 
 ### Uninstall
@@ -107,21 +107,21 @@ npx skills update orca-hub
 Claude Code:
 
 ```sh
-claude plugin uninstall orca-hub@ddevkim-skills
-claude plugin marketplace remove ddevkim-skills
+claude plugin uninstall vera@vera
+claude plugin marketplace remove vera
 ```
 
 Codex:
 
 ```sh
-codex plugin remove orca-hub@ddevkim-skills
-codex plugin marketplace remove ddevkim-skills
+codex plugin remove vera@vera
+codex plugin marketplace remove vera
 ```
 
 npx skills:
 
 ```sh
-npx skills remove orca-hub
+npx skills remove hub
 ```
 
 ## License
