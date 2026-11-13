@@ -103,5 +103,5 @@ test("hub stays direct-invocation only on Codex", () => {
   const yaml = fs.readFileSync(path.join(root, "skills/hub/agents/openai.yaml"), "utf8");
   assert.match(yaml, /^\s*allow_implicit_invocation: false\s*$/m);
   assert.match(yaml, /^\s*display_name: "Vera Hub"\s*$/m);
-  assert.match(yaml, /^\s*default_prompt: "Use \$hub to /m);
+  assert.match(yaml, /^\s*default_prompt: "Use \$vera:hub to /m);
 });

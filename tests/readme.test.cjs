@@ -20,7 +20,7 @@ const INSTALL = [
 
 const RUN_UPDATE_REMOVE = [
   "/vera:hub",
-  "$hub",
+  "$vera:hub",
   "claude plugin marketplace update vera",
   "claude plugin update vera@vera",
   "codex plugin marketplace upgrade vera",

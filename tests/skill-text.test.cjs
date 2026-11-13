@@ -90,7 +90,7 @@ test("each reference with Korean text says its Korean strings are examples", () 
 test("the frontmatter parses, keeps the skill direct-invocation only, and is language-neutral", () => {
   const f = frontmatter();
   assert.strictEqual(f.name, "hub");
-  assert.match(f.description, /^Use when the developer invokes \/vera:hub or \$hub /);
+  assert.match(f.description, /^Use when the developer invokes \/vera:hub or \$vera:hub /);
   assert.match(read(path.join(skillDir, "SKILL.md")), /^# Vera hub$/m);
   assert.ok(f.description && f.description.trim(), "description is empty");
   assert.strictEqual(f["disable-model-invocation"], "true");
