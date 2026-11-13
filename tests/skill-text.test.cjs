@@ -249,6 +249,28 @@ test("Codex workers get the allow list, push only in the forms their prefix rule
   assert.doesNotMatch(section(read(path.join(skillDir, "SKILL.md")), "Start or resume"), /with a Claude worker, create the worktree first/,
     "step 6 writes the allow list for Claude workers only");
   const rule13 = read(path.join(refDir, "worker-spec.md")).split("\n").find((l) => l.startsWith("13. ")) || "";
-  assert.match(rule13, /As a Codex worker[^.]*`git push -u origin HEAD` every time and `git push --force-with-lease` after a rebase/);
+  assert.match(rule13, /As a Codex worker[^.]*`git push -u origin HEAD` in place of the bare `git push` in rules 6d, 6e and 11, and `git push --force-with-lease` after a rebase/);
   assert.match(read(path.join(refDir, "cleanup.md")), /':!\.codex\/rules\/orca-hub\.rules'/);
+});
+
+test("the Codex rules are described as prefixes that also allow what follows, and refusals go to the developer", () => {
+  const autonomy = section(read(path.join(skillDir, "SKILL.md")), "Autonomy levels");
+  const row = autonomy.split("\n").find((l) => l.startsWith("| Worker permission prompts")) || "";
+  assert.match(row, /Codex[^|]*allow rules also cover anything appended to these forms/, "the table promises exact forms to Codex workers");
+  assert.match(row, /guard rules cover fewer forms than Claude's/);
+  const rule13 = read(path.join(refDir, "worker-spec.md")).split("\n").find((l) => l.startsWith("13. ")) || "";
+  assert.doesNotMatch(rule13, /Every other push form asks <the developer>/, "rule 13 says every push form asks, which a Codex worker under bypass does not get");
+  assert.match(rule13, /Codex[^.]*allow rules also cover anything appended to these forms/);
+  assert.match(rule13, /`git push origin feat\/x`/, "rule 13 does not show a push form that runs unasked under bypass");
+  const question = read(path.join(skillDir, "SKILL.md")).split("\n").find((l) => l.startsWith("| `question` from a worker")) || "";
+  assert.match(question, /Codex policy refusal[^|]*the command and why/);
+  assert.match(question, /never replies with another form of the refused command/);
+});
+
+test("the allow list says each half is written on its own", () => {
+  const autonomy = section(read(path.join(skillDir, "SKILL.md")), "Autonomy levels");
+  assert.doesNotMatch(autonomy, /nothing was written, and that worker keeps its prompts/, "the old all-or-nothing refusal is still documented");
+  assert.match(autonomy, /writes each half on its own/);
+  assert.match(autonomy, /tracks `\.claude\/settings\.local\.json`/);
+  assert.match(autonomy, /exits 1 only when it wrote neither half/);
 });
