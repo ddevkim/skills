@@ -259,7 +259,11 @@ test("the Codex rules are described as prefixes that also allow what follows, an
   assert.match(row, /Codex[^|]*allow rules also cover anything appended to these forms/, "the table promises exact forms to Codex workers");
   assert.match(row, /guard rules cover fewer forms than Claude's/);
   assert.match(row, /the bare `git push` is not pre-allowed for a Codex worker/, "the table lists the bare push as pre-allowed for Codex");
+  assert.match(row, /Codex[^|]*a relative `rm` runs because the sandbox or the bypass lets it, not because of an allow rule/,
+    "the table says Codex pre-allows rm");
   const rule13 = read(path.join(refDir, "worker-spec.md")).split("\n").find((l) => l.startsWith("13. ")) || "";
+  assert.match(rule13, /Codex[^.]*a relative `rm` runs because the sandbox or the bypass lets it, not because of an allow rule/,
+    "rule 13 says Codex pre-allows rm");
   assert.doesNotMatch(rule13, /Every other push form asks <the developer>/, "rule 13 says every push form asks, which a Codex worker under bypass does not get");
   assert.match(rule13, /Codex[^.]*allow rules also cover anything appended to these forms/);
   assert.match(rule13, /`git push origin feat\/x`/, "rule 13 does not show a push form that runs unasked under bypass");
