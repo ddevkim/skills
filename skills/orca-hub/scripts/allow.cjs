@@ -18,7 +18,8 @@ const { spawnSync } = require("node:child_process");
 const RULES = {
   allow: ["Bash(git push)", "Bash(git push -u origin HEAD)", "Bash(git push --force-with-lease)",
     "Bash(gh pr create *)", "Bash(rm *)"],
-  ask: ["Bash(rm /*)", "Bash(rm * /*)", "Bash(rm *..*)", "Bash(rm *~*)", "Bash(rm *$*)"],
+  ask: ["Bash(rm /*)", "Bash(rm * /*)", "Bash(rm *..*)", "Bash(rm *~*)", "Bash(rm *$*)",
+    "Bash(rm *.git)", "Bash(rm *.git/*)", "Bash(rm *.git *)"],
   deny: ["Bash(git push --force *)", "Bash(git push * --force)", "Bash(git push * --force *)",
     "Bash(git push -f *)", "Bash(git push * -f)", "Bash(git push * -f *)", "Bash(git push * +*)"],
 };

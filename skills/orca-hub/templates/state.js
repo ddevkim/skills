@@ -11,7 +11,9 @@ window.HUB_STATE = {
   flowSummary: "기반 레인 → 화면 레인",   // optional: shown after the 개발 흐름 heading
   repo: "acme/app",          // GitHub owner/name: sync.cjs runs `gh pr view --repo` with it
   runId: "run_xxxxxxxx",     // bookkeeping for resume
-  hubWorktree: "/Users/me/orca/workspaces/app/hub-notify",  // the hub session's Orca workspace ("" outside one): workers are its children
+  hubWorktree: "",           // the parent workspace in Orca's sidebar, the hub's own or the repo's main one ("" until SKILL.md step 5): workers are its children
+  hubWorktreeOldName: "",    // the parent's display name before the hub renamed it ("" when the hub renamed nothing): restored at close
+  hubWorktreeOldNameMode: "", // the parent's displayNameMode before the rename ("" when the hub renamed nothing)
   lastMsgId: "",             // id of the last Orca message handled: resume handles the inbox messages after it
   v: 2,                      // layout version: review before walkthrough. A state.js without it is upgraded first (references/upgrade.md)
   autonomy: "low",          // "low" | "medium" | "high": what the hub leaves to the developer (SKILL.md); absent or unknown = "low"

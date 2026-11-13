@@ -146,3 +146,82 @@ test("dashboard.md's to-do, ask, and needs rows say how the list differs by auto
     assert.match(row, /`medium`[\s\S]*`high`/, `${start} row does not name the levels`);
   }
 });
+
+const section = (text, heading) => (text.match(new RegExp(`\\n## ${heading}\\n([\\s\\S]*?)(?=\\n## |$)`)) || [])[1] || "";
+
+test("SKILL.md builds one sidebar tree: a parent recorded with its old name, workers re-parented under it", () => {
+  const start = section(read(path.join(skillDir, "SKILL.md")), "Start or resume");
+  assert.match(start, /`hubWorktreeOldName`/, "no hubWorktreeOldName in Start or resume");
+  assert.match(start, /`isMainWorktree: true`/, "does not say how the main workspace is found");
+  assert.match(start, /orca worktree set --worktree path:<worker path> --parent-worktree path:<hubWorktree>/,
+    "no re-parent command for a top-level worker");
+  assert.doesNotMatch(start, /use `new-top-level` and log it/, "accepts top-level workers as the final state");
+});
+
+test("resume never records the hub's own name as the parent's old name", () => {
+  const start = section(read(path.join(skillDir, "SKILL.md")), "Start or resume");
+  assert.match(start, /a resume never records/, "step 5 records the old name on every pass");
+  assert.match(start, /`hubWorktree` set: only re-parent its live workers/, "resume re-runs step 5 on a renamed parent");
+  assert.doesNotMatch(start, /set the parent as in step 5 and re-parent/, "resume re-records the parent's current name");
+  assert.match(start, /name already has a hub's `<Hub> · <feature>` form/, "a second hub would record the first hub's name");
+});
+
+test("cleanup restores the parent's old name when the hub closes, and upgrade sets the parent", () => {
+  const closing = section(read(path.join(refDir, "cleanup.md")), "Closing the hub");
+  assert.match(closing, /`hubWorktreeOldName`/, "Closing the hub does not restore the old name");
+  assert.match(closing, /when the developer closes the hub early/, "the early-close path is not covered");
+  assert.match(read(path.join(refDir, "upgrade.md")), /`hubWorktreeOldName`/, "upgrade.md lacks the line for an older hub");
+});
+
+test("state.js carries hubWorktreeOldName beside hubWorktree, empty by default", () => {
+  const vm = require("node:vm");
+  const sandbox = { window: {} };
+  vm.runInNewContext(read(path.join(skillDir, "templates", "state.js")), sandbox);
+  assert.strictEqual(sandbox.window.HUB_STATE.hubWorktreeOldName, "");
+  const keys = Object.keys(sandbox.window.HUB_STATE);
+  assert.strictEqual(keys.indexOf("hubWorktreeOldName"), keys.indexOf("hubWorktree") + 1);
+});
+
+test("the push rules name their exact forms and the allow list names its limits", () => {
+  const protocol = read(path.join(refDir, "worker-spec.md"));
+  const rule = (n) => protocol.split("\n").find((l) => l.startsWith(`${n}. `)) || "";
+  assert.match(rule(11), /Push \(`git push`\)/, "rule 11 does not name the push form");
+  assert.match(rule(13), /upstream/, "rule 13 does not say the bare push needs the upstream set first");
+  const autonomy = section(read(path.join(skillDir, "SKILL.md")), "Autonomy levels");
+  assert.match(autonomy, /`\+<ref>` are asked or refused/);
+  assert.doesNotMatch(autonomy, /`\+<ref>` are refused/);
+  assert.match(autonomy, /"don't ask again" answer in a worker terminal is stored by Claude Code for the main checkout and outlives the worktree/,
+    "the allow-list paragraph does not warn about a stored answer");
+});
+
+test("the hub records whether the parent's name was automatic and asks when it cannot give a name back", () => {
+  const vm = require("node:vm");
+  const sandbox = { window: {} };
+  vm.runInNewContext(read(path.join(skillDir, "templates", "state.js")), sandbox);
+  const keys = Object.keys(sandbox.window.HUB_STATE);
+  assert.strictEqual(sandbox.window.HUB_STATE.hubWorktreeOldNameMode, "");
+  assert.strictEqual(keys.indexOf("hubWorktreeOldNameMode"), keys.indexOf("hubWorktreeOldName") + 1);
+  const start = section(read(path.join(skillDir, "SKILL.md")), "Start or resume");
+  assert.match(start, /`hubWorktreeOldNameMode` \(the mode\)/, "step 5 does not record the name mode");
+  assert.match(start, /rename it again when its name differs from the hub's/, "resume leaves an unrenamed parent");
+  const closing = section(read(path.join(refDir, "cleanup.md")), "Closing the hub");
+  assert.match(closing, /no command returns a workspace to its automatic name/, "the close hides that an automatic name comes back fixed");
+  assert.match(closing, /`hubWorktreeOldNameMode` is "" but the parent still carries the hub's name: ask the developer which name to give back/);
+  assert.match(closing, /`--workspace-status`/, "the close does not say what happens to the parent's board status");
+  assert.match(read(path.join(refDir, "upgrade.md")), /an existing `hubWorktree` is kept/);
+});
+
+test("step 5 reads and records the parent's name in one edit before it renames, once per hub folder", () => {
+  const start = section(read(path.join(skillDir, "SKILL.md")), "Start or resume");
+  const steps = ["1. Find the parent:", "2. Read that row's `displayName` and `displayNameMode`", "3. A parent whose name already has a hub's",
+    "4. Write `hubWorktree`", "5. Only then rename:"].map((s) => start.indexOf(s));
+  assert.ok(steps.every((i) => i >= 0), `a sub-step is missing: ${steps}`);
+  assert.deepStrictEqual([...steps].sort((a, b) => a - b), steps, "the sub-steps are out of order");
+  assert.match(start, /Write `hubWorktree` \(the path\), `hubWorktreeOldName` \(the name\), and `hubWorktreeOldNameMode` \(the mode\) into `state\.js` in one edit/);
+  assert.match(start, /This recording happens exactly once per hub folder: on a new hub, or on an upgrade whose `hubWorktree` was ""; a resume never records\./);
+  assert.doesNotMatch(start, /only while `hubWorktree` is still ""/, "the guard follows the store");
+  const vm = require("node:vm");
+  const sandbox = { window: {} };
+  vm.runInNewContext(read(path.join(skillDir, "templates", "state.js")), sandbox);
+  assert.strictEqual(sandbox.window.HUB_STATE.hubWorktree, "", "a fresh hub folder starts with a sample parent path");
+});
