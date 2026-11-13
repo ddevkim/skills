@@ -293,9 +293,9 @@ const PROG = { ...AUTO, needs: [], decisions: [], workers: [] };
 const renderProg = (items, lang = "ko") =>
   render(current(), { states: [{ ...PROG, lang, lanes: [{ name: "b", countsAsPr: true, items }, { name: "o", countsAsPr: false, items: [item("O1", "merged", { phases: 8 })] }] }], live: undefined });
 const prog = html => {
-  const m = html.match(/<div class="prog" role="progressbar" aria-valuenow="(\d+)" aria-valuemin="0" aria-valuemax="100" aria-label="([^"]*)" title="([^"]*)">[\s\S]*?class="prog-done" style="width:([\d.]+)%"[\s\S]*?class="prog-move" style="width:([\d.]+)%"[\s\S]*?<span class="prog-text">([\s\S]*?)<\/span><\/div>/);
+  const m = html.match(/<div class="prog" role="progressbar" aria-valuenow="(\d+)" aria-valuemin="0" aria-valuemax="100" aria-label="([^"]*)" aria-valuetext="([^"]*)" title="([^"]*)">[\s\S]*?class="prog-done" style="width:([\d.]+)%"[\s\S]*?class="prog-move" style="width:([\d.]+)%"[\s\S]*?<span class="prog-text">([\s\S]*?)<\/span><\/div>/);
   assert.ok(m, "the progressbar markup is on the page");
-  return { now: +m[1], label: m[2], title: m[3], green: +m[4], clay: +m[5], text: m[6] };
+  return { now: +m[1], label: m[2], valuetext: m[3], title: m[4], green: +m[5], clay: +m[6], text: m[7] };
 };
 const merged = n => Array.from({ length: n }, (_, k) => item(`M${k}`, "merged", { phases: k % 2 ? 8 : 3 }));
 
@@ -339,4 +339,37 @@ test("C12 no countable PR, no bar", async () => {
     assert.ok(!html.includes('role="progressbar"') && !html.includes("NaN"), "no bar");
   }
   assert.strictEqual(prog((await renderProg([item("A", "todo", { phases: 0 })])).html).now, 0, "one countable PR at 0 still has its bar");
+});
+
+test("C12 a missing or non-numeric phases counts as 0, never NaN", async () => {
+  // 0 + 0 + 4 = 4 of 24 = 16.7 %.
+  const html = (await renderProg([item("A", "active", { phases: undefined }), item("B", "active", { phases: "x" }), item("C", "active", { phases: 4 })])).html;
+  const p = prog(html);
+  assert.strictEqual(p.now, 16);
+  assert.ok(!html.includes("NaN"), "no NaN anywhere");
+  assert.ok(Math.abs(p.clay - 100 / 6) < 0.01 && p.green === 0, "widths are numbers");
+});
+
+test("C12 aria-valuetext says what the visible label says, with the merged count", async () => {
+  for (const lang of ["ko", "en"]) {
+    const t = (await renderProg([item("A", "active", { phases: 4 }), item("B", "merged")], lang)).table[lang];
+    const p = prog((await renderProg([item("A", "active", { phases: 4 }), item("B", "merged")], lang)).html);
+    assert.strictEqual(p.valuetext, `75% · ${t.progMerged(1, 2)}`, `${lang}: partial`);
+    const all = prog((await renderProg(merged(2), lang)).html);
+    assert.strictEqual(all.valuetext, `100% · ${t.progMerged(2, 2)}`, `${lang}: all merged keeps the count for screen readers`);
+  }
+});
+
+test("C11 watching decisions sit under their own heading, and an empty answer draws no arrow", async () => {
+  for (const lang of ["ko", "en"]) {
+    const s = { ...AUTO, decisions: [...AUTO.decisions, { id: "H2", status: "answered", by: "hub", text: "Blank?", answer: "" }] };
+    const r = await renderAuto("high", lang, s), t = r.table[lang], html = r.html;
+    assert.ok(t.watchDecH, "watching heading label exists");
+    const h = html.indexOf(`<h3>${t.watchDecH}</h3>`);
+    assert.ok(h > 0 && h < html.indexOf("Checking it."), `${lang}: heading above the watching row`);
+    const li = html.slice(html.indexOf("Blank?"), html.indexOf("</li>", html.indexOf("Blank?")));
+    assert.ok(!li.includes("→"), `${lang}: no dangling arrow: ${li}`);
+    const noWatch = (await renderAuto("high", lang, { ...AUTO, decisions: AUTO.decisions.filter(d => d.status !== "watching") })).html;
+    assert.ok(!noWatch.includes(t.watchDecH), `${lang}: no heading without watching rows`);
+  }
 });

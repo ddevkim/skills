@@ -157,7 +157,7 @@ const L10N = {
     workersH: (n, cap) => `작업자 ${n}명 작업 중 (동시 상한 ${cap}명)`, startedNew: "시작됨 · 허브 반영 전",
     hubGoes: "허브가 이어서 진행", level: { medium: "자율 단계: 중간", high: "자율 단계: 높음" },
     levelTip: { medium: "제품 결정과 병합 승인만 묻고, PR 은 워크스루를 기다리지 않고 엽니다.", high: "되돌릴 수 없는 작업 앞에서만 묻고, 제품 결정과 병합은 허브가 스스로 합니다." },
-    hubDecH: "허브가 스스로 정한 것", yourDecH: o => `${o}님이 정한 것`, hubDecLine: n => `허브가 스스로 정한 것이 ${n}건 있습니다.`,
+    hubDecH: "허브가 스스로 정한 것", watchDecH: "아직 확인 중인 것", yourDecH: o => `${o}님이 정한 것`, hubDecLine: n => `허브가 스스로 정한 것이 ${n}건 있습니다.`,
     progLabel: "전체 진행률", progMerged: (m, n) => `병합 ${m}/${n}`
   },
   en: {
@@ -195,7 +195,7 @@ const L10N = {
     workersH: (n, cap) => `${n} ${n === 1 ? "worker" : "workers"} working (limit ${cap})`, startedNew: "Started · hub not updated",
     hubGoes: "Hub carries on", level: { medium: "Autonomy: medium", high: "Autonomy: high" },
     levelTip: { medium: "You are asked for product decisions and merge approvals; PRs open without waiting for the walkthrough.", high: "You are asked only before irreversible actions; the hub decides product questions and merges on its own." },
-    hubDecH: "Decided by the hub", yourDecH: o => `Decided by ${o}`, hubDecLine: n => `The hub decided ${n} ${n === 1 ? "question" : "questions"} on its own.`,
+    hubDecH: "Decided by the hub", watchDecH: "Still being checked", yourDecH: o => `Decided by ${o}`, hubDecLine: n => `The hub decided ${n} ${n === 1 ? "question" : "questions"} on its own.`,
     progLabel: "Overall progress", progMerged: (m, n) => `Merged ${m}/${n}`
   }
 };
@@ -369,11 +369,11 @@ function render() {
   const decLi = d => { const st = DEC[d.status] ? d.status : "watching"; return `<li><span class="pill ${DEC[st]}">${T.dec[st]}</span> ${d.id ? `<b>${esc(d.id)}</b> ` : ""}${esc(d.text)}${d.answer ? ` → <b>${esc(d.answer)}</b>` : ""}</li>`; };
   const hubDec = S.decisions.filter(d => d.by === "hub" && d.status === "answered");
   const rest = S.decisions.filter(d => d.status !== "open" && !hubDec.includes(d));
-  // Beside the hub's list, the developer's heading holds only what they answered; other rows (watching) follow without a heading.
+  // Beside the hub's list, the developer's heading holds only what they answered; other rows (watching) get their own heading.
   const mine = rest.filter(d => d.status === "answered"), other = rest.filter(d => d.status !== "answered");
-  const decSplit = `${mine.length ? `<h3>${T.yourDecH(esc(S.owner))}</h3><ul class="items">${mine.map(decLi).join("")}</ul>` : ""}${other.length ? `<ul class="items">${other.map(decLi).join("")}</ul>` : ""}`;
+  const decSplit = `${mine.length ? `<h3>${T.yourDecH(esc(S.owner))}</h3><ul class="items">${mine.map(decLi).join("")}</ul>` : ""}${other.length ? `<h3>${T.watchDecH}</h3><ul class="items">${other.map(decLi).join("")}</ul>` : ""}`;
   const hubLine = LEVEL === "high" && hubDec.length ? `<li><a href="#decided">${T.hubDecLine(hubDec.length)}</a></li>` : "";
-  const hubList = hubDec.length ? `<h3>${T.hubDecH}</h3><ul class="items">${hubDec.map(d => `<li>${d.id ? `<b>${esc(d.id)}</b> ` : ""}${esc(d.text)} → <b>${esc(d.answer)}</b></li>`).join("")}</ul>` : "";
+  const hubList = hubDec.length ? `<h3>${T.hubDecH}</h3><ul class="items">${hubDec.map(d => `<li>${d.id ? `<b>${esc(d.id)}</b> ` : ""}${esc(d.text)}${d.answer ? ` → <b>${esc(d.answer)}</b>` : ""}</li>`).join("")}</ul>` : "";
   const refs = [refLink("spec.md", T.specDoc), refLink("protocol.md", T.protocolDoc), ...(Array.isArray(S.refs) ? S.refs : []).filter(r => r && r.label).slice(0, 6).map(r => refLink(r.href, r.label))];
   const syncM = L ? mins(L.at) : null;
   const sync = S.closed ? `<span class="pill idle">${T.syncDone}</span>`
@@ -386,7 +386,7 @@ function render() {
   const reached = prs.reduce((n, i) => n + (i.status === "merged" ? 8 : Math.min(Math.max(Number(i.phases) || 0, 0), 8)), 0);
   const share = prs.length ? reached * 100 / (8 * prs.length) : 0, pct = Math.floor(share), mergedW = merged * 100 / (prs.length || 1);
   // The all-merged headline already states the count, so the bar then shows the percentage alone (the count stays in its title).
-  const prog = !prs.length ? "" : `<div class="prog" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="${T.progLabel}" title="${T.progMerged(merged, prs.length)}"><div class="prog-track"><span class="prog-done" style="width:${mergedW.toFixed(2)}%"></span><span class="prog-move" style="width:${Math.max(share - mergedW, 0).toFixed(2)}%"></span></div><span class="prog-text"><b>${pct}%</b>${allMerged ? "" : ` · ${T.progMerged(merged, prs.length)}`}</span></div>`;
+  const prog = !prs.length ? "" : `<div class="prog" role="progressbar" aria-valuenow="${esc(pct)}" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(T.progLabel)}" aria-valuetext="${esc(`${pct}% · ${T.progMerged(merged, prs.length)}`)}" title="${esc(T.progMerged(merged, prs.length))}"><div class="prog-track"><span class="prog-done" style="width:${esc(mergedW.toFixed(2))}%"></span><span class="prog-move" style="width:${esc(Math.max(share - mergedW, 0).toFixed(2))}%"></span></div><span class="prog-text"><b>${pct}%</b>${allMerged ? "" : ` · ${T.progMerged(merged, prs.length)}`}</span></div>`;
   const asks = todoN
     ? `<div class="ask"><b>${T.askHead(esc(S.owner))}</b>${S.ask ? `<div>${esc(S.ask)}</div>` : ""}${todo.length ? `<ol class="todo">${todo.map(t => `<li><span class="pill bad">${t.kind}</span> ${t.text}${t.links ? ` · ${t.links}` : ""}${t.opts ? `<div class="opts">${t.opts}</div>` : ""}<div class="how">${t.how}</div></li>`).join("")}</ol>` : ""}</div>`
     : allMerged || S.closed ? "" : `<div class="ask calm"><b>${T.calm(esc(S.owner))}</b></div>`;
