@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>허브 진행 현황</title>
+<title>Hub</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <!-- Non-blocking: a slow or offline font server must not hold the renderer script. -->
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
@@ -114,14 +114,83 @@ a { color: var(--clay-strong); }
 /* Fixed renderer. Never edit this file: the hub edits state.js, sync.cjs writes live.js.
    Both are re-read every few seconds with <script> tags, because fetch() of local files is blocked on file://. */
 const POLL_MS = 5000, SYNC_STALE_MIN = 2, STOPPED_MIN = 5, SAME_STEP_MIN = 30;
-const PH_KO = ["시험 실패 확인", "구현 통과", "전체 검증", "독립 리뷰 통과", "워크스루 승인", "PR 열림", "CI 통과", "병합"];
-const REVIEW = 3, WALK = 4, PR = 5; // PH_KO indexes that link somewhere
-const ST = { todo: ["대기", "idle"], active: ["작업 중", "clay"], walk: ["워크스루 대기", "bad"], pr: ["PR 열림·CI", "clay"], review: ["리뷰 중", "watch"],
-  ready: ["병합 준비됨", "good"], merged: ["병합됨", "good"], blocked: ["막힘", "bad"] };
+/* Every text the page writes itself, per language. HUB_STATE.lang picks one ("ko" when absent or unknown).
+   Arguments arrive already escaped. A new language is one more table with the same keys. */
+const L10N = {
+  ko: {
+    lang: "ko", docTitle: t => `${t} 진행`,
+    noState: "state.js 를 읽지 못했습니다. 같은 폴더에 state.js 가 있는지, 문법 오류가 없는지 확인하세요.",
+    phases: ["시험 실패 확인", "구현 통과", "전체 검증", "독립 리뷰 통과", "워크스루 승인", "PR 열림", "CI 통과", "병합"],
+    st: { todo: "대기", active: "작업 중", walk: "워크스루 대기", pr: "PR 열림·CI", review: "리뷰 중", ready: "병합 준비됨", merged: "병합됨", blocked: "막힘" },
+    stage: { todo: "대기", active: "작업 중", review: "독립 리뷰", walk: "워크스루 대기", pr: "PR 열림·CI", ready: "병합 준비됨", merged: "병합됨" },
+    msg: { worker_done: "작업자 완료 보고", ask: "작업자 질문", question: "작업자 질문", escalation: "작업자 멈춤 알림" },
+    dec: { open: "결정 필요", watching: "확인 중", answered: "답함" },
+    waitsMerge: "병합 승인 대기", needWalk: "워크스루 필요", needReview: "독립 리뷰 필요",
+    walkLink: "워크스루 보기", openPr: "PR 열기", specLink: "작업 명세", specDoc: "기능 명세", protocolDoc: "작업자 규약",
+    justNow: "방금", minAgo: m => `${m}분 전`, hAgo: (h, m) => `${h}시간 ${m}분 전`,
+    waitReason: r => `입력 대기: ${r}`, wait: "입력 대기", waitMin: m => `입력 대기 ${m}분`,
+    kWait: "입력 대기", kNeed: "직접 할 일", kDec: "결정", kWalk: "워크스루 승인", kMerge: "병합 승인", kBlocked: "막힘",
+    waitText: (id, w) => `작업자 ${id} 가 터미널에서 답을 기다립니다 (${w}).`, waitHow: "Orca 사이드바에서 그 작업자를 열어 답합니다.",
+    needHow: "끝나면 허브 대화에 알려 줍니다.", recommend: " · 허브 권장", decHow: "허브 대화에서 답합니다.", decWaits: ids => ` 이 답을 기다리는 작업: ${ids}`,
+    walkHow: "워크스루를 읽고 허브 대화에서 승인하거나 질문합니다. 승인해야 PR 이 열립니다.", changed: "승인 뒤 변경",
+    mergeHow: id => `허브 대화에 "${id} 병합해" 라고 답합니다.`, blockedHow: "허브 대화에서 어떻게 풀지 정합니다.",
+    headAllMerged: (t, n) => `${t}: PR ${n}개를 모두 병합했다`, headTodo: (t, o, n) => `${t}: ${o}님이 할 일이 ${n}건 있다`, headNone: (t, o) => `${t}: 지금 ${o}님이 할 일은 없다`,
+    stopped: m => `작업자 멈춤 ${m}분`, sameStep: m => `같은 단계 ${m}분째`,
+    ciPass: "CI 통과", ciFail: n => `CI 실패 ${n}건`, ciPending: (p, t) => `CI 진행 중 ${p}/${t}`,
+    startedPending: "작업자 시작됨 · 허브 반영 전", reportedPhase: p => `작업자 보고: ${p} · 허브 반영 전`, msgPending: m => `${m} · 허브 반영 전`,
+    waitingPill: w => `기다림: ${w}`, afterLine: a => `먼저 끝나야 하는 작업: ${a}`, mergedVia: (pr, sha) => `PR ${pr} 로 병합했습니다${sha}`,
+    syncDone: "동기화 종료(완료)", syncOff: "실시간 동기화 꺼짐", syncStale: m => `실시간 동기화가 ${m}분째 멈췄습니다`, syncLive: a => `실시간 · ${a}`, syncErr: e => `동기화 오류: ${e}`,
+    askHead: o => `${o}님이 지금 할 일`, calm: o => `지금 ${o}님이 할 일은 없습니다.`,
+    hubLag: (n, more, a) => `허브가 아직 반영하지 않은 작업자 메시지가 ${n}건${more ? " 이상" : ""} 있습니다(가장 오래된 것 ${a}). 카드의 "허브 반영 전" 표시가 작업자가 보고한 실제 단계입니다. 허브가 대화로 질문 중이거나 다른 일을 처리하는 중일 수 있습니다.`,
+    stateBroken: "state.js 를 읽지 못해 직전 화면을 유지합니다. 허브가 파일을 고치는 중일 수 있습니다.",
+    meta: (t, o, sha) => `${t} 진행 현황 · 허브 → ${o} · 기준 <span class="mono">${sha}</span>`, updated: at => `허브 갱신 ${at}`,
+    refsLabel: "이 작업이 따르는 문서:", flowH: "개발 흐름",
+    legend: ["병합됨·병합 준비됨", "작업 중·PR 열림", "리뷰 중·위험 표시·승인 뒤 변경", "대기", "막힘·승인 대기·입력 대기"],
+    checkH: "PR별 체크포인트: 칸을 누르면 워크스루나 PR 이 열립니다", thPr: "PR", thLane: "레인",
+    decidedH: "지금까지 정한 것", decidedNone: "아직 정한 것이 없다",
+    workersH: (n, cap) => `작업자 ${n}명 작업 중 (동시 상한 ${cap}명)`, startedNew: "시작됨 · 허브 반영 전"
+  },
+  en: {
+    lang: "en", docTitle: t => `${t} progress`,
+    noState: "Could not read state.js. Check that state.js is in this folder and has no syntax error.",
+    phases: ["Test fails", "Code passes", "Full check", "Review passed", "Walkthrough OK", "PR open", "CI passed", "Merged"],
+    st: { todo: "Waiting", active: "Working", walk: "Walkthrough waiting", pr: "PR open · CI", review: "In review", ready: "Ready to merge", merged: "Merged", blocked: "Blocked" },
+    stage: { todo: "Waiting", active: "Working", review: "Review", walk: "Walkthrough waiting", pr: "PR open · CI", ready: "Ready to merge", merged: "Merged" },
+    msg: { worker_done: "Worker done", ask: "Worker question", question: "Worker question", escalation: "Worker blocked" },
+    dec: { open: "Needs decision", watching: "Checking", answered: "Answered" },
+    waitsMerge: "Waiting for merge OK", needWalk: "Needs walkthrough", needReview: "Needs review",
+    walkLink: "Walkthrough", openPr: "Open PR", specLink: "Task spec", specDoc: "Feature spec", protocolDoc: "Worker protocol",
+    justNow: "just now", minAgo: m => `${m} min ago`, hAgo: (h, m) => `${h} h ${m} min ago`,
+    waitReason: r => `Waiting for input: ${r}`, wait: "Waiting for input", waitMin: m => `Waiting for input ${m} min`,
+    kWait: "Input", kNeed: "Your task", kDec: "Decision", kWalk: "Walkthrough", kMerge: "Merge", kBlocked: "Blocked",
+    waitText: (id, w) => `Worker ${id} waits for an answer in its terminal (${w}).`, waitHow: "Open that worker in the Orca sidebar and answer.",
+    needHow: "Tell the hub when it is done.", recommend: " · hub suggests", decHow: "Answer in the hub chat.", decWaits: ids => ` Waiting on this: ${ids}`,
+    walkHow: "Read the walkthrough, then approve or ask in the hub chat. The PR opens after you approve.", changed: "Changed after OK",
+    mergeHow: id => `Reply "merge ${id}" in the hub chat.`, blockedHow: "Decide in the hub chat how to unblock it.",
+    headAllMerged: (t, n) => n === 1 ? `${t}: the PR is merged` : `${t}: all ${n} PRs are merged`,
+    headTodo: (t, o, n) => `${t}: ${o} has ${n} ${n === 1 ? "thing" : "things"} to do`, headNone: (t, o) => `${t}: ${o} has nothing to do right now`,
+    stopped: m => `Worker stopped ${m} min`, sameStep: m => `Same step for ${m} min`,
+    ciPass: "CI passed", ciFail: n => `CI failed: ${n}`, ciPending: (p, t) => `CI running ${p}/${t}`,
+    startedPending: "Worker started · hub not updated", reportedPhase: p => `Worker says: ${p} · hub not updated`, msgPending: m => `${m} · hub not updated`,
+    waitingPill: w => `Waiting: ${w}`, afterLine: a => `Must finish first: ${a}`, mergedVia: (pr, sha) => `Merged with PR ${pr}${sha}`,
+    syncDone: "Sync ended (done)", syncOff: "Live sync off", syncStale: m => `Live sync has been stopped for ${m} min`, syncLive: a => `Live · ${a}`, syncErr: e => `Sync error: ${e}`,
+    askHead: o => `What ${o} needs to do now`, calm: o => `${o} has nothing to do right now.`,
+    hubLag: (n, more, a) => `${n}${more ? "+" : ""} worker ${n === 1 && !more ? "message is" : "messages are"} not yet in the hub (oldest ${a}). The "hub not updated" tags on the cards show the step the worker reported. The hub may be asking you something or busy with other work.`,
+    stateBroken: "Could not read state.js, so this is the last good screen. The hub may be editing the file.",
+    meta: (t, o, sha) => `${t} progress · hub → ${o} · base <span class="mono">${sha}</span>`, updated: at => `Hub updated ${at}`,
+    refsLabel: "Documents this work follows:", flowH: "Work flow",
+    legend: ["Merged · ready", "Working · PR open", "In review · risk · changed after OK", "Waiting", "Blocked · needs OK · waiting for input"],
+    checkH: "Checkpoints per PR: click a box to open the walkthrough or PR", thPr: "PR", thLane: "Lane",
+    decidedH: "Decided so far", decidedNone: "Nothing decided yet",
+    workersH: (n, cap) => `${n} ${n === 1 ? "worker" : "workers"} working (limit ${cap})`, startedNew: "Started · hub not updated"
+  }
+};
+let T = L10N.ko;
+const REVIEW = 3, WALK = 4, PR = 5; // T.phases indexes that link somewhere
+const ST = { todo: "idle", active: "clay", walk: "bad", pr: "clay", review: "watch", ready: "good", merged: "good", blocked: "bad" }; // status → tone
 const PH_NUM = { red: 1, green: 2, verified: 3, "pr-open": 6, "ci-green": 7 }; // status --phase → phases (sync.cjs)
-const MSG_KO = { worker_done: "작업자 완료 보고", ask: "작업자 질문", question: "작업자 질문", escalation: "작업자 멈춤 알림" };
 const HUB_LAG_MIN = 3; // older unhandled worker messages than this: the hub is behind
-const DEC = { open: ["결정 필요", "bad"], watching: ["확인 중", "watch"], answered: ["답함", "good"] };
+const DEC = { open: "bad", watching: "watch", answered: "good" };
 const TONE = { active: "clay", support: "watch", done: "good" };
 const check = '<svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7"/></svg>';
 const arrow = '<svg class="arrow" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 9h11M10 5l4 4-4 4"/></svg>';
@@ -130,10 +199,11 @@ const app = document.getElementById("app");
 const onMain = i => i.base === "main";
 const waitsApproval = i => i.status === "ready" && onMain(i) && !i.walkPending && !i.reviewPending;
 const walkHref = (i, step = 1) => /^[A-Za-z0-9_-]+-w\d+$/.test(String(i.walkthrough || "")) ? `walkthrough.html?w=${i.walkthrough}#${step}` : "";
-const walkLink = i => walkHref(i) ? `<a href="${walkHref(i)}" target="_blank" rel="noopener">워크스루 보기</a>` : "";
+const walkLink = i => walkHref(i) ? `<a href="${walkHref(i)}" target="_blank" rel="noopener">${T.walkLink}</a>` : "";
 // The developer approved round walkApproved; a later round means the code changed after that approval.
 const changedAfter = i => i.walkApproved && i.walkthrough && i.walkthrough !== i.walkApproved && !["walk", "merged"].includes(i.status);
-const statusOf = i => waitsApproval(i) ? ["병합 승인 대기", "bad"] : i.walkPending && i.status !== "walk" ? ["워크스루 필요", "bad"] : i.reviewPending && i.status !== "review" ? ["독립 리뷰 필요", "bad"] : (ST[i.status] || ST.todo);
+const statusOf = i => waitsApproval(i) ? [T.waitsMerge, "bad"] : i.walkPending && i.status !== "walk" ? [T.needWalk, "bad"] : i.reviewPending && i.status !== "review" ? [T.needReview, "bad"]
+  : ST[i.status] ? [T.st[i.status], ST[i.status]] : [T.st.todo, ST.todo];
 const prLink = i => i.pr ? (/^https:\/\//.test(i.prUrl || "") ? `<a href="${esc(i.prUrl)}" target="_blank" rel="noopener">#${esc(i.pr)}</a>` : `#${esc(i.pr)}`) : "";
 // A link the hub wrote: https, or a file inside the hub folder (specs/N1.md). Anything else is shown as plain text.
 const safeRef = h => /^https:\/\/\S+$/.test(String(h || "")) || (/^[A-Za-z0-9_.\/-]+$/.test(String(h || "")) && !/^\/|\.\./.test(String(h)));
@@ -141,17 +211,17 @@ const refLink = (href, label) => safeRef(href) ? `<a href="${esc(href)}" target=
 const okId = id => /^[A-Za-z0-9_-]+$/.test(String(id || ""));
 let CARDS = new Set(); // ids that have a card on the page
 const jump = id => okId(id) && CARDS.has(String(id)) ? `<a href="#i-${id}">${id}</a>` : esc(id); // to the item's card in 개발 흐름
-const STAGES = [["todo", "대기"], ["active", "작업 중"], ["review", "독립 리뷰"], ["walk", "워크스루 대기"], ["pr", "PR 열림·CI"], ["ready", "병합 준비됨"], ["merged", "병합됨"]];
+const STAGES = ["todo", "active", "review", "walk", "pr", "ready", "merged"];
 const mins = iso => { const t = Date.parse(iso || ""); return Number.isNaN(t) ? null : Math.max(0, Math.floor((Date.now() - t) / 60000)); };
-const ago = iso => { const m = mins(iso); return m === null ? "" : m < 1 ? "방금" : m < 60 ? `${m}분 전` : `${Math.floor(m / 60)}시간 ${m % 60}분 전`; };
+const ago = iso => { const m = mins(iso); return m === null ? "" : m < 1 ? T.justNow : m < 60 ? T.minAgo(m) : T.hAgo(Math.floor(m / 60), m % 60); };
 // Orca's agentWait (worktree ps --agent-wait) is e.g. { source: "hook", since: <ms> }; a reason, when present, is shown.
 // Takes a live worker entry; without a reason it names the command the worker is stopped on.
 const waitLabel = e => {
   const w = e.wait;
   const reason = typeof w === "string" ? w : w && (w.reason || w.summary);
-  if (reason) return `입력 대기: ${reason}`;
+  if (reason) return T.waitReason(reason);
   const m = w && w.since ? mins(new Date(w.since).toISOString()) : null;
-  return (m === null ? "입력 대기" : `입력 대기 ${m}분`) + (e.tool ? ` · ${String(e.tool).slice(0, 40)}` : "");
+  return (m === null ? T.wait : T.waitMin(m)) +(e.tool ? ` · ${String(e.tool).slice(0, 40)}` : "");
 };
 
 let S = null, L = null, stateBroken = false, liveMissing = true, lastKey = "";
@@ -178,11 +248,13 @@ async function tick() {
 }
 
 function render() {
+  T = (S && L10N[S.lang]) || L10N.ko;
+  document.documentElement.lang = T.lang;
   if (!S) {
-    app.innerHTML = '<div class="ask">state.js 를 읽지 못했습니다. 같은 폴더에 state.js 가 있는지, 문법 오류가 없는지 확인하세요.</div>';
+    app.innerHTML = `<div class="ask">${T.noState}</div>`;
     return;
   }
-  document.title = `${S.title} 진행`;
+  document.title = T.docTitle(S.title);
   for (const k of ["lanes", "workers", "decisions", "log"]) if (!Array.isArray(S[k])) S[k] = [];
   for (const l of S.lanes) if (!Array.isArray(l.items)) l.items = [];
   const W = (L && L.workers) || {}, P = (L && L.prs) || {}, NEW = (L && L.discovered) || {};
@@ -205,19 +277,19 @@ function render() {
   const started = new Set(S.workers.map(w => w.item));
   // Everything only the developer can do, most blocking first. Each row: what it is, where to look, how to answer.
   const todo = [
-    ...waiting.map(([id, w]) => ({ kind: "입력 대기", text: `작업자 ${jump(id)} 가 터미널에서 답을 기다립니다 (${esc(waitLabel(w))}).`, how: "Orca 사이드바에서 그 작업자를 열어 답합니다." })),
-    ...list(S.needs).map(n => typeof n === "string" ? { text: n } : n || {}).filter(n => n.text).map(n => ({ kind: "직접 할 일", text: esc(n.text), how: esc(n.how || "끝나면 허브 대화에 알려 줍니다.") })),
-    ...openDecisions.map(d => ({ kind: "결정", text: `${d.id ? `<b>${esc(d.id)}</b> ` : ""}${esc(d.text)}`,
-      opts: list(d.options).map(o => `<span class="opt ${o === d.recommend ? "rec" : ""}">${esc(o)}${o === d.recommend ? " · 허브 권장" : ""}</span>`).join(""),
-      how: `허브 대화에서 답합니다.${list(d.items).length ? ` 이 답을 기다리는 작업: ${list(d.items).map(jump).join(", ")}` : ""}` })),
-    ...walks.map(i => ({ kind: "워크스루 승인", text: `${jump(i.id)} ${esc(i.title)}`, links: walkLink(i), how: "워크스루를 읽고 허브 대화에서 승인하거나 질문합니다. 승인해야 PR 이 열립니다." })),
-    ...approvals.map(i => ({ kind: "병합 승인", text: `${jump(i.id)} ${esc(i.title)}`, links: [prLink(i), walkLink(i)].filter(Boolean).join(" · ") + (changedAfter(i) ? ` <span class="pill watch">승인 뒤 변경</span>` : ""), how: `허브 대화에 "${esc(i.id)} 병합해" 라고 답합니다.` })),
-    ...blockedAll.map(i => ({ kind: "막힘", text: `${jump(i.id)} ${esc(i.title)}${i.ext ? `: ${esc(i.ext)}` : ""}`, links: prLink(i), how: "허브 대화에서 어떻게 풀지 정합니다." })),
+    ...waiting.map(([id, w]) => ({ kind: T.kWait, text: T.waitText(jump(id), esc(waitLabel(w))), how: T.waitHow })),
+    ...list(S.needs).map(n => typeof n === "string" ? { text: n } : n || {}).filter(n => n.text).map(n => ({ kind: T.kNeed, text: esc(n.text), how: esc(n.how || T.needHow) })),
+    ...openDecisions.map(d => ({ kind: T.kDec, text: `${d.id ? `<b>${esc(d.id)}</b> ` : ""}${esc(d.text)}`,
+      opts: list(d.options).map(o => `<span class="opt ${o === d.recommend ? "rec" : ""}">${esc(o)}${o === d.recommend ? T.recommend : ""}</span>`).join(""),
+      how: `${T.decHow}${list(d.items).length ? T.decWaits(list(d.items).map(jump).join(", ")) : ""}` })),
+    ...walks.map(i => ({ kind: T.kWalk, text: `${jump(i.id)} ${esc(i.title)}`, links: walkLink(i), how: T.walkHow })),
+    ...approvals.map(i => ({ kind: T.kMerge, text: `${jump(i.id)} ${esc(i.title)}`, links: [prLink(i), walkLink(i)].filter(Boolean).join(" · ") + (changedAfter(i) ? ` <span class="pill watch">${T.changed}</span>` : ""), how: T.mergeHow(esc(i.id)) })),
+    ...blockedAll.map(i => ({ kind: T.kBlocked, text: `${jump(i.id)} ${esc(i.title)}${i.ext ? `: ${esc(i.ext)}` : ""}`, links: prLink(i), how: T.blockedHow })),
   ];
   const todoN = todo.length || (S.ask ? 1 : 0);
   const headline = merged === prs.length && prs.length
-    ? `${S.title}: PR ${prs.length}개를 모두 병합했다`
-    : `${S.title}: ${todoN ? `${S.owner}님이 할 일이 ${todoN}건 있다` : `지금 ${S.owner}님이 할 일은 없다`}`;
+    ? T.headAllMerged(S.title, prs.length)
+    : todoN ? T.headTodo(S.title, S.owner, todoN) : T.headNone(S.title, S.owner);
 
   const items = Object.fromEntries(S.lanes.flatMap(l => l.items).map(i => [i.id, i]));
   const liveSignal = (w, item) => {
@@ -226,24 +298,24 @@ function render() {
     if (item && HI[item.id] && HI[item.id].last && HI[item.id].last.type !== "status") return ""; // it reported; the hub has not read it yet
     const m = mins(w.at);
     const itemStatus = item ? item.status : "";
-    if (w.state !== "working" && itemStatus === "active" && m >= STOPPED_MIN) return `<span class="pill watch">작업자 멈춤 ${m}분</span>`;
-    if (w.state === "working" && m >= SAME_STEP_MIN) return `<span class="pill watch">같은 단계 ${m}분째</span>`;
+    if (w.state !== "working" && itemStatus === "active" && m >= STOPPED_MIN) return `<span class="pill watch">${T.stopped(m)}</span>`;
+    if (w.state === "working" && m >= SAME_STEP_MIN) return `<span class="pill watch">${T.sameStep(m)}</span>`;
     return "";
   };
   const nowLine = (w, item) => !w ? "" : `<div class="now">${liveSignal(w, item)}${w.say ? `<div>▸ ${esc(w.say)}</div>` : ""}<div class="age">${w.tool ? `<span class="mono">${esc(w.tool)}</span> · ` : ""}${ago(w.at)}</div></div>`;
   const ciPill = i => {
     const p = i.pr && P[i.pr];
     if (!p || i.status === "merged") return "";
-    if (p.ci === "pass") return `<span class="pill good">CI 통과</span>`;
-    if (p.ci === "fail") return `<span class="pill bad">CI 실패 ${esc(p.fail)}건</span>`;
-    if (p.ci === "pending") return `<span class="pill watch">CI 진행 중 ${esc(p.pass)}/${esc((p.pass || 0) + (p.fail || 0) + (p.pending || 0))}</span>`;
+    if (p.ci === "pass") return `<span class="pill good">${T.ciPass}</span>`;
+    if (p.ci === "fail") return `<span class="pill bad">${T.ciFail(esc(p.fail))}</span>`;
+    if (p.ci === "pending") return `<span class="pill watch">${T.ciPending(esc(p.pass), esc((p.pass || 0) + (p.fail || 0) + (p.pending || 0)))}</span>`;
     return "";
   };
   const reported = i => {
     const h = HI[i.id], bits = [];
-    if (NEW[i.id] && ["todo", "blocked"].includes(i.status)) bits.push(`<span class="pill clay">작업자 시작됨 · 허브 반영 전</span>`);
-    if (h && h.phase && PH_NUM[h.phase] > (i.phases || 0)) bits.push(`<span class="pill watch">작업자 보고: ${esc(PH_KO[PH_NUM[h.phase] - 1])} · 허브 반영 전</span>`);
-    if (h && h.last && ["worker_done", "ask", "question", "escalation"].includes(h.last.type)) bits.push(`<span class="pill watch">${esc(MSG_KO[h.last.type])} · 허브 반영 전</span>`);
+    if (NEW[i.id] && ["todo", "blocked"].includes(i.status)) bits.push(`<span class="pill clay">${T.startedPending}</span>`);
+    if (h && h.phase && PH_NUM[h.phase] > (i.phases || 0)) bits.push(`<span class="pill watch">${T.reportedPhase(esc(T.phases[PH_NUM[h.phase] - 1]))}</span>`);
+    if (h && h.last && ["worker_done", "ask", "question", "escalation"].includes(h.last.type)) bits.push(`<span class="pill watch">${T.msgPending(esc(T.msg[h.last.type]))}</span>`);
     return bits.join("");
   };
   // What the PR does so far: the hub's `done`, except while a newer worker SUMMARY line waits for the hub (sync.cjs marks it fresh).
@@ -252,65 +324,65 @@ function render() {
   const node = i => {
     const [label, tone] = statusOf(i);
     const risks = (i.risk || []).map(r => `<span class="pill watch">${esc(r)}</span>`).join("");
-    const docs = [walkLink(i), started.has(i.id) && okId(i.id) ? refLink(`specs/${i.id}.md`, "작업 명세") : ""].filter(Boolean).join(" · ");
+    const docs = [walkLink(i), started.has(i.id) && okId(i.id) ? refLink(`specs/${i.id}.md`, T.specLink) : ""].filter(Boolean).join(" · ");
     const after = (Array.isArray(i.after) ? i.after : typeof i.after === "string" && i.after ? [i.after] : []).map(jump).join(", ");
-    return `<div class="node s-${esc(i.status)}${waitsApproval(i) ? " s-you" : ""}"${okId(i.id) ? ` id="i-${i.id}"` : ""}><div class="id">${esc(i.id)} ${prLink(i)}</div><div class="t">${esc(i.title)}</div>${sofar(i) ? `<div class="sofar">${esc(sofar(i))}</div>` : ""}<div class="pills"><span class="pill ${tone}">${label}</span>${reported(i)}${ciPill(i)}${risks}${i.waiting ? `<span class="pill watch">기다림: ${esc(i.waiting)}</span>` : ""}</div>${docs ? `<div class="ext">${docs}${changedAfter(i) ? ` <span class="pill watch">승인 뒤 변경</span>` : ""}</div>` : ""}${after ? `<div class="ext">먼저 끝나야 하는 작업: ${after}</div>` : ""}${i.status === "merged" && i.pr ? `<div class="ext">PR ${prLink(i)} 로 병합했습니다${i.mergeSha ? ` · <span class="mono">${esc(String(i.mergeSha).slice(0, 7))}</span>` : ""}</div>` : ""}${i.ext ? `<div class="ext">${esc(i.ext)}</div>` : ""}${i.status === "merged" ? "" : nowLine(W[i.id], NEW[i.id] && i.status === "todo" ? { ...i, status: "active" } : i)}</div>`;
+    return `<div class="node s-${esc(i.status)}${waitsApproval(i) ? " s-you" : ""}"${okId(i.id) ? ` id="i-${i.id}"` : ""}><div class="id">${esc(i.id)} ${prLink(i)}</div><div class="t">${esc(i.title)}</div>${sofar(i) ? `<div class="sofar">${esc(sofar(i))}</div>` : ""}<div class="pills"><span class="pill ${tone}">${label}</span>${reported(i)}${ciPill(i)}${risks}${i.waiting ? `<span class="pill watch">${T.waitingPill(esc(i.waiting))}</span>` : ""}</div>${docs ? `<div class="ext">${docs}${changedAfter(i) ? ` <span class="pill watch">${T.changed}</span>` : ""}</div>` : ""}${after ? `<div class="ext">${T.afterLine(after)}</div>` : ""}${i.status === "merged" && i.pr ? `<div class="ext">${T.mergedVia(prLink(i), i.mergeSha ? ` · <span class="mono">${esc(String(i.mergeSha).slice(0, 7))}</span>` : "")}</div>` : ""}${i.ext ? `<div class="ext">${esc(i.ext)}</div>` : ""}${i.status === "merged" ? "" : nowLine(W[i.id], NEW[i.id] && i.status === "todo" ? { ...i, status: "active" } : i)}</div>`;
   };
   const rows = own.flatMap(l => l.items.map(i => {
     const done = i.phases || 0;
     const live = ["active", "walk", "pr", "review", "ready"].includes(i.status);
     const late = k => (k === WALK && i.walkPending) || (k === REVIEW && i.reviewPending);
     const href = k => k === REVIEW ? walkHref(i, 6) : k === WALK ? walkHref(i) : k === PR && /^https:\/\//.test(i.prUrl || "") ? esc(i.prUrl) : "";
-    const cells = PH_KO.map((name, k) => {
+    const cells = T.phases.map((name, k) => {
       const box = `<span class="box ${late(k) ? "late" : k < done ? "on" : (k === done && live ? "now" : "")}">${k < done && !late(k) ? check : ""}</span>`;
-      return `<td>${href(k) ? `<a href="${href(k)}" target="_blank" rel="noopener" title="${name}: ${k === PR ? "PR 열기" : "워크스루 보기"}">${box}</a>` : box}</td>`;
+      return `<td>${href(k) ? `<a href="${href(k)}" target="_blank" rel="noopener" title="${name}: ${k === PR ? T.openPr : T.walkLink}">${box}</a>` : box}</td>`;
     }).join("");
     return `<tr><td class="l"><b>${esc(i.id)}</b> ${prLink(i)} ${esc(i.title)}</td><td class="l">${esc(l.name)}</td>${cells}</tr>`;
   })).join("");
   // Where every PR is, left to right. A stage the developer must act on is red; each id jumps to its card.
-  const stageOf = i => i.status === "todo" && NEW[i.id] ? "active" : STAGES.some(([k]) => k === i.status) ? i.status : "todo"; // a worker that already started counts as working
-  const stages = STAGES.map(([k, lbl]) => {
+  const stageOf = i => i.status === "todo" && NEW[i.id] ? "active" : STAGES.includes(i.status) ? i.status : "todo"; // a worker that already started counts as working
+  const stages = STAGES.map(k => {
     const here = prs.filter(i => i.status !== "blocked" && stageOf(i) === k);
     const you = (k === "walk" && here.length) || (k === "ready" && here.some(waitsApproval));
-    return `<div class="stage ${!here.length ? "zero" : you ? "you" : k === "merged" ? "done" : ""}"><div class="n">${here.length}</div><div class="lbl">${lbl}</div><div class="ids">${here.map(i => jump(i.id)).join("")}</div></div>`;
-  }).join("") + (blockedItems.length ? `<div class="stage you"><div class="n">${blockedItems.length}</div><div class="lbl">막힘</div><div class="ids">${blockedItems.map(i => jump(i.id)).join("")}</div></div>` : "");
+    return `<div class="stage ${!here.length ? "zero" : you ? "you" : k === "merged" ? "done" : ""}"><div class="n">${here.length}</div><div class="lbl">${T.stage[k]}</div><div class="ids">${here.map(i => jump(i.id)).join("")}</div></div>`;
+  }).join("") + (blockedItems.length ? `<div class="stage you"><div class="n">${blockedItems.length}</div><div class="lbl">${T.st.blocked}</div><div class="ids">${blockedItems.map(i => jump(i.id)).join("")}</div></div>` : "");
   const know = list(S.summary).slice(0, 3);
-  const refs = [refLink("spec.md", "기능 명세"), refLink("protocol.md", "작업자 규약"), ...(Array.isArray(S.refs) ? S.refs : []).filter(r => r && r.label).slice(0, 6).map(r => refLink(r.href, r.label))];
+  const refs = [refLink("spec.md", T.specDoc), refLink("protocol.md", T.protocolDoc), ...(Array.isArray(S.refs) ? S.refs : []).filter(r => r && r.label).slice(0, 6).map(r => refLink(r.href, r.label))];
   const syncM = L ? mins(L.at) : null;
-  const sync = S.closed ? `<span class="pill idle">동기화 종료(완료)</span>`
-    : liveMissing ? `<span class="pill idle">실시간 동기화 꺼짐</span>`
-    : syncM >= SYNC_STALE_MIN ? `<span class="pill bad">실시간 동기화가 ${syncM}분째 멈췄습니다</span>`
-    : `<span class="pill good">실시간 · ${ago(L.at)}</span>`;
-  const syncErr = L && L.errors && L.errors.length ? ` <span class="pill watch">동기화 오류: ${esc(L.errors[0])}</span>` : "";
+  const sync = S.closed ? `<span class="pill idle">${T.syncDone}</span>`
+    : liveMissing ? `<span class="pill idle">${T.syncOff}</span>`
+    : syncM >= SYNC_STALE_MIN ? `<span class="pill bad">${T.syncStale(syncM)}</span>`
+    : `<span class="pill good">${T.syncLive(ago(L.at))}</span>`;
+  const syncErr = L && L.errors && L.errors.length ? ` <span class="pill watch">${T.syncErr(esc(L.errors[0]))}</span>` : "";
   const allMerged = merged === prs.length && prs.length;
   const asks = todoN
-    ? `<div class="ask"><b>${esc(S.owner)}님이 지금 할 일</b>${S.ask ? `<div>${esc(S.ask)}</div>` : ""}${todo.length ? `<ol class="todo">${todo.map(t => `<li><span class="pill bad">${t.kind}</span> ${t.text}${t.links ? ` · ${t.links}` : ""}${t.opts ? `<div class="opts">${t.opts}</div>` : ""}<div class="how">${t.how}</div></li>`).join("")}</ol>` : ""}</div>`
-    : allMerged || S.closed ? "" : `<div class="ask calm"><b>지금 ${esc(S.owner)}님이 할 일은 없습니다.</b></div>`;
+    ? `<div class="ask"><b>${T.askHead(esc(S.owner))}</b>${S.ask ? `<div>${esc(S.ask)}</div>` : ""}${todo.length ? `<ol class="todo">${todo.map(t => `<li><span class="pill bad">${t.kind}</span> ${t.text}${t.links ? ` · ${t.links}` : ""}${t.opts ? `<div class="opts">${t.opts}</div>` : ""}<div class="how">${t.how}</div></li>`).join("")}</ol>` : ""}</div>`
+    : allMerged || S.closed ? "" : `<div class="ask calm"><b>${T.calm(esc(S.owner))}</b></div>`;
 
   app.innerHTML = `
-${H.count && lagM >= HUB_LAG_MIN && !S.closed ? `<div class="ask ${lagM >= 15 ? "warnbar" : ""}">허브가 아직 반영하지 않은 작업자 메시지가 ${esc(H.count)}건${H.more ? " 이상" : ""} 있습니다(가장 오래된 것 ${ago(H.oldestAt)}). 카드의 "허브 반영 전" 표시가 작업자가 보고한 실제 단계입니다. 허브가 대화로 질문 중이거나 다른 일을 처리하는 중일 수 있습니다.</div>` : ""}
-${stateBroken ? '<div class="ask warnbar">state.js 를 읽지 못해 직전 화면을 유지합니다. 허브가 파일을 고치는 중일 수 있습니다.</div>' : ""}
-<div class="meta"><span>${esc(S.title)} 진행 현황 · 허브 → ${esc(S.owner)} · 기준 <span class="mono">${esc(S.baseSha)}</span></span><span>허브 갱신 ${esc(S.updatedAt)} · ${sync}${syncErr}</span></div>
+${H.count && lagM >= HUB_LAG_MIN && !S.closed ? `<div class="ask ${lagM >= 15 ? "warnbar" : ""}">${T.hubLag(esc(H.count), H.more, ago(H.oldestAt))}</div>` : ""}
+${stateBroken ? `<div class="ask warnbar">${T.stateBroken}</div>` : ""}
+<div class="meta"><span>${T.meta(esc(S.title), esc(S.owner), esc(S.baseSha))}</span><span>${T.updated(esc(S.updatedAt))} · ${sync}${syncErr}</span></div>
 <h1>${esc(headline)}</h1>
 ${asks}
 <div class="stages">${stages}</div>
 ${know.length ? `<ul class="know">${know.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
-<div class="refs"><span>이 작업이 따르는 문서:</span>${refs.join("")}</div>
+<div class="refs"><span>${T.refsLabel}</span>${refs.join("")}</div>
 <section class="card">
-  <h2>개발 흐름${S.flowSummary ? `: ${esc(S.flowSummary)}` : ""}</h2>
+  <h2>${T.flowH}${S.flowSummary ? `: ${esc(S.flowSummary)}` : ""}</h2>
   ${S.lanes.map(l => `<div class="lane"><div class="lane-h">${esc(l.name)}</div><div class="flow">${l.items.map(node).join(arrow)}</div></div>`).join("")}
-  <div class="legend"><span class="pill good">병합됨·병합 준비됨</span><span class="pill clay">작업 중·PR 열림</span><span class="pill watch">리뷰 중·위험 표시·승인 뒤 변경</span><span class="pill idle">대기</span><span class="pill bad">막힘·승인 대기·입력 대기</span></div>
+  <div class="legend">${["good", "clay", "watch", "idle", "bad"].map((tone, k) => `<span class="pill ${tone}">${T.legend[k]}</span>`).join("")}</div>
 </section>
 <section class="card">
-  <h2>PR별 체크포인트: 칸을 누르면 워크스루나 PR 이 열립니다</h2>
+  <h2>${T.checkH}</h2>
   <div class="tablewrap"><table>
-    <thead><tr><th class="l">PR</th><th class="l">레인</th>${PH_KO.map(p => `<th>${p}</th>`).join("")}</tr></thead>
+    <thead><tr><th class="l">${T.thPr}</th><th class="l">${T.thLane}</th>${T.phases.map(p => `<th>${p}</th>`).join("")}</tr></thead>
     <tbody>${rows}</tbody>
   </table></div>
 </section>
 <section class="grid2">
-  <div class="card"><h2>지금까지 정한 것</h2><ul class="items">${S.decisions.filter(d => d.status !== "open").map(d => { const [lbl, tone] = DEC[d.status] || DEC.watching; return `<li><span class="pill ${tone}">${lbl}</span> ${d.id ? `<b>${esc(d.id)}</b> ` : ""}${esc(d.text)}${d.answer ? ` → <b>${esc(d.answer)}</b>` : ""}</li>`; }).join("") || "<li>아직 정한 것이 없다</li>"}</ul></div>
-  <div class="card"><h2>작업자 ${active}명 작업 중 (동시 상한 ${esc(S.workerCap)}명)</h2><ul class="items">${Object.entries(NEW).map(([id, d]) => `<li><span class="pill clay">시작됨 · 허브 반영 전</span> <b>${esc(id)}</b> · <span class="mono">${esc(String(d.path || "").split("/").pop())}</span>${nowLine(W[id], { status: "active" })}</li>`).join("")}${S.workers.map(w => `<li><span class="pill ${TONE[w.tone] || "idle"}">${esc(w.state)}</span> <b>${esc(w.lane)} ${esc(w.item)}</b> · <span class="mono">${esc(w.worktree)}</span>${w.tone === "done" ? "" : nowLine(W[w.item], items[w.item])}</li>`).join("")}${S.log.slice(0, 8).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>
+  <div class="card"><h2>${T.decidedH}</h2><ul class="items">${S.decisions.filter(d => d.status !== "open").map(d => { const st = DEC[d.status] ? d.status : "watching"; return `<li><span class="pill ${DEC[st]}">${T.dec[st]}</span> ${d.id ? `<b>${esc(d.id)}</b> ` : ""}${esc(d.text)}${d.answer ? ` → <b>${esc(d.answer)}</b>` : ""}</li>`; }).join("") || `<li>${T.decidedNone}</li>`}</ul></div>
+  <div class="card"><h2>${T.workersH(active, esc(S.workerCap))}</h2><ul class="items">${Object.entries(NEW).map(([id, d]) => `<li><span class="pill clay">${T.startedNew}</span> <b>${esc(id)}</b> · <span class="mono">${esc(String(d.path || "").split("/").pop())}</span>${nowLine(W[id], { status: "active" })}</li>`).join("")}${S.workers.map(w => `<li><span class="pill ${TONE[w.tone] || "idle"}">${esc(w.state)}</span> <b>${esc(w.lane)} ${esc(w.item)}</b> · <span class="mono">${esc(w.worktree)}</span>${w.tone === "done" ? "" : nowLine(W[w.item], items[w.item])}</li>`).join("")}${S.log.slice(0, 8).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>
 </section>`;
 }
 
