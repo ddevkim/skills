@@ -158,3 +158,13 @@ test("an rm that names .git asks, and an ordinary rm still runs", () => {
   for (const cmd of ["rm -rf .git", "rm -r .git/hooks", "rm -rf ./.git"]) assert.ok(!allowed(cmd), `runs without a prompt: ${cmd}`);
   for (const cmd of ["rm notes.txt", "rm .gitignore"]) assert.ok(allowed(cmd), `${cmd} is no longer pre-allowed`);
 });
+
+test("a gh pr create to another repo asks, and --base still runs", () => {
+  const l = lab();
+  assert.strictEqual(l.run("write", l.wt, "medium").code, 0);
+  const p = JSON.parse(fs.readFileSync(l.file, "utf8")).permissions;
+  const allowed = (cmd) => p.allow.some((r) => matches(r, cmd)) && ![...p.ask, ...p.deny].some((r) => matches(r, cmd));
+  for (const cmd of ["gh pr create --repo o/r --title t", "gh pr create --title t --repo o/r", "gh pr create --repo=o/r",
+    "gh pr create --title t --repo=o/r", "gh pr create -R o/r", "gh pr create --title t -R o/r"]) assert.ok(!allowed(cmd), `runs without a prompt: ${cmd}`);
+  for (const cmd of ["gh pr create --base feat/a --title t", "gh pr create --title t --body b"]) assert.ok(allowed(cmd), `${cmd} is no longer pre-allowed`);
+});
