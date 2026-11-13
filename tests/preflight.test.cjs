@@ -58,9 +58,9 @@ test("orca absent: names Orca and where to get it", () => {
 });
 
 test("orca app closed: tells to open the Orca app", () => {
-  const r = run({ orca: 'case "$1 $2" in "repo list") exit 1 ;; "skills get") echo x ;; *) echo 1.4.256 ;; esac' });
+  const r = run({ orca: 'case "$1 $2" in "repo list") echo "orca: app not running" >&2; exit 1 ;; "skills get") echo x ;; *) echo 1.4.256 ;; esac' });
   assert.strictEqual(r.code, 1);
-  assert.ok(r.lines.some((l) => /^missing: .*open the Orca app/.test(l)), r.lines.join("\n"));
+  assert.ok(r.lines.some((l) => /^missing: .*orca: app not running.*open the Orca app/.test(l)), r.lines.join("\n"));
 });
 
 test("orchestration skill missing: names it and the install command", () => {
@@ -99,7 +99,7 @@ test("two failures: both lines in one run", () => {
 
 test("hung tool: times out into a missing line", () => {
   const start = Date.now();
-  const r = run({ gh: "exec /bin/sleep 30" }, { PREFLIGHT_TIMEOUT_MS: "500" });
+  const r = run({ gh: "exec /bin/sleep 30" }, { PREFLIGHT_TIMEOUT_MS: "1500" });
   assert.ok(Date.now() - start < 10000, "script hung");
   assert.strictEqual(r.code, 1);
   assert.ok(r.lines.some((l) => /^missing: .*gh/.test(l)), r.lines.join("\n"));

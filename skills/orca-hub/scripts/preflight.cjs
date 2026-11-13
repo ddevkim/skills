@@ -7,6 +7,7 @@ const { spawnSync } = require("node:child_process");
 const TIMEOUT_MS = Number(process.env.PREFLIGHT_TIMEOUT_MS) || 10000;
 
 // Runs a tool; ok is false when it is absent, fails, or outlives the timeout.
+// The timeout kills only the direct child: a hung tool's own children may keep running.
 function run(cmd, args) {
   const r = spawnSync(cmd, args, { encoding: "utf8", timeout: TIMEOUT_MS, killSignal: "SIGKILL" });
   const out = `${r.stdout || ""}${r.stderr || ""}`;
@@ -36,7 +37,10 @@ if (!orca.ok) {
 } else {
   found.orca = orca.out.trim().split("\n")[0];
   const repos = run("orca", ["repo", "list", "--json"]);
-  if (!repos.ok) missing.push(`Orca does not answer (${why(repos, "orca") || "orca repo list failed"}) — open the Orca app`);
+  if (!repos.ok) {
+    const said = repos.out.trim().split("\n")[0];
+    missing.push(`Orca does not answer (${why(repos, "orca") || `orca repo list failed${said ? `: ${said}` : ""}`}) — open the Orca app if it is closed`);
+  }
   const skill = run("orca", ["skills", "get", "orchestration"]);
   if (!skill.ok) missing.push(`the Orca orchestration skill is not available — run: orca skills install --skill orchestration`);
 }
