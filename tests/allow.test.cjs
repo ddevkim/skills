@@ -417,6 +417,8 @@ const CODEX_WANT = {
   "git push --no-verify origin --force": "forbidden", "git push origin -u --force": "forbidden", "git push origin -u -f HEAD": "forbidden",
   "git push origin --no-verify --force": "forbidden", "git push -q origin HEAD --force": "forbidden",
   "git push --no-verify origin HEAD -f": "forbidden",
+  "git push --no-verify -u origin --force": "forbidden", "git push -u --no-verify origin -f": "forbidden",
+  "git push --no-verify -u origin HEAD --force": "forbidden",
   "git push --no-verify origin HEAD --delete feat/x": "prompt", "git push --no-verify origin HEAD +HEAD:main": "prompt",
   "git push --no-verify -u origin HEAD": null, "git push --no-verify origin feat/a": null,
   "rm -rf .*": "prompt", "rm -rf ./.*": "prompt", "rm -rf /*": "prompt", "rm -rf ~/*": "prompt", "rm -rf ../*": "prompt",
@@ -480,9 +482,10 @@ test("the real Codex matcher gives every command in both tables the same decisio
     const p = spawn("codex", ["execpolicy", "check", "--rules", codexFiles(l.wt).rules, "--", ...tokens(cmd)],
       { env: { ...process.env, CODEX_HOME: home } });
     let out = "";
+    let err = ""; // Codex may print warnings here (PATH aliases); only stdout is the verdict
     p.stdout.on("data", (d) => { out += d; });
-    p.stderr.on("data", (d) => { out += d; });
-    p.on("close", () => { try { resolve(JSON.parse(out).decision || null); } catch { reject(new Error(`${cmd}: ${out}`)); } });
+    p.stderr.on("data", (d) => { err += d; });
+    p.on("close", () => { try { resolve(JSON.parse(out).decision || null); } catch { reject(new Error(`${cmd}: ${out}${err}`)); } });
   });
   const all = { ...CODEX_WANT, ...CODEX_GAPS };
   const cmds = Object.keys(all);
