@@ -6,7 +6,8 @@
 //   node allow.cjs check <worktree>                      exit 1 while anything it wrote is still there
 // It writes only <worktree>/.claude/settings.local.json, <worktree>/.codex/rules/orca-hub.rules, a
 // .gitignore in each of .claude and .codex that keeps them out of git, and a record in the worktree's git
-// dir. It never sets a permission mode and never reads or writes user settings.
+// dir. It never sets a permission mode and never reads or writes user settings. write exits 1 only when it
+// wrote neither half.
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
@@ -30,26 +31,36 @@ const RULES = {
 // Codex prefix_rule syntax (developers.openai.com/codex/rules, measured on Codex CLI 0.166.0): a rule
 // matches a command whose argument list starts with its pattern, each position a literal or a list of
 // alternatives, and the most restrictive match wins (forbidden, then prompt, then allow). There are no
-// wildcards, so these guard fewer forms than the Claude rules. Codex checks each rule's match and
-// not_match examples when it loads the file.
+// wildcards, so these guard fewer forms than the Claude rules, and an allow rule also allows whatever
+// follows its pattern: the prompt rules after each push allow name the forms that would reach main or
+// widen the push. Codex checks each rule's match and not_match examples when it loads the file.
 const FORCE = ["--force", "-f"];
-const MAIN = ["main", "master", "HEAD:main", "HEAD:master"];
+const MAIN = ["main", "master", "HEAD:main", "HEAD:master", "+main", "+master", "+HEAD:main", "+HEAD:master", ":main", ":master"];
+const WIDE = ["--delete", "-d", "--mirror", "--all", "--branches", "--tags", "--prune"];
 const CODEX_RULES = [
   { pattern: ["git", "push", "-u", "origin", "HEAD"], decision: "allow", justification: "orca-hub: the push workers use",
     match: ["git push -u origin HEAD"], not_match: ["git push -u origin HEAD:main", "git push origin HEAD"] },
+  { pattern: ["git", "push", "-u", "origin", "HEAD", [...MAIN, ...WIDE]], decision: "prompt",
+    justification: "orca-hub: a push to main or master, or a wider push, needs the developer",
+    match: ["git push -u origin HEAD +HEAD:main", "git push -u origin HEAD --delete main"], not_match: ["git push -u origin HEAD"] },
   { pattern: ["git", "push", "--force-with-lease"], decision: "allow", justification: "orca-hub: the push after a rebase",
-    match: ["git push --force-with-lease", "git push --force-with-lease origin x"], not_match: ["git push --force"] },
+    match: ["git push --force-with-lease"], not_match: ["git push --force"] },
+  { pattern: ["git", "push", "--force-with-lease", ["origin", ...FORCE, ...WIDE]], decision: "prompt",
+    justification: "orca-hub: workers push --force-with-lease with nothing after it",
+    match: ["git push --force-with-lease origin main", "git push --force-with-lease --force"], not_match: ["git push --force-with-lease"] },
   { pattern: ["gh", "pr", "create"], decision: "allow", justification: "orca-hub: opening the item's PR",
     match: ["gh pr create --base feat/a --title t"], not_match: ["gh pr merge 1"] },
   { pattern: ["gh", "pr", "create", ["--repo", "-R"]], decision: "prompt",
     justification: "orca-hub: a PR in another repo needs the developer",
     match: ["gh pr create --repo o/r", "gh pr create -R o/r"], not_match: ["gh pr create --base feat/a"] },
-  { pattern: ["rm", ["-r", "-rf", "-fr", "-R", "-Rf"], ["/", "~", "..", ".git", ".git/"]], decision: "prompt",
-    justification: "orca-hub: this rm may leave the worktree or delete its git link",
-    match: ["rm -rf /", "rm -r ..", "rm -fr ~", "rm -rf .git"], not_match: ["rm -rf src", "rm notes.txt"] },
-  { pattern: ["git", "push", "origin", MAIN], decision: "prompt", justification: "orca-hub: a push to main or master needs the developer",
-    match: ["git push origin main", "git push origin HEAD:master"], not_match: ["git push origin feat/a"] },
-  { pattern: ["git", "push", "-u", "origin", MAIN], decision: "prompt", justification: "orca-hub: a push to main or master needs the developer",
+  { pattern: ["rm", ["-r", "-rf", "-fr", "-R", "-Rf"], ["/", "~", "..", ".git", ".git/", ".", "./", "*"]], decision: "prompt",
+    justification: "orca-hub: this rm may leave the worktree, delete it, or delete its git link",
+    match: ["rm -rf /", "rm -r ..", "rm -fr ~", "rm -rf .git", "rm -rf ."], not_match: ["rm -rf src", "rm notes.txt"] },
+  { pattern: ["git", "push", "origin", [...MAIN, ...WIDE]], decision: "prompt",
+    justification: "orca-hub: a push to main or master, or a wider push, needs the developer",
+    match: ["git push origin main", "git push origin HEAD:master", "git push origin --delete main"], not_match: ["git push origin feat/a"] },
+  { pattern: ["git", "push", "-u", "origin", [...MAIN, ...WIDE]], decision: "prompt",
+    justification: "orca-hub: a push to main or master, or a wider push, needs the developer",
     match: ["git push -u origin main"], not_match: ["git push -u origin HEAD"] },
   { pattern: ["git", "push", FORCE], decision: "forbidden", justification: "orca-hub: no plain force push; use git push --force-with-lease",
     match: ["git push --force", "git push -f origin x"], not_match: ["git push --force-with-lease"] },
@@ -61,9 +72,11 @@ const CODEX_RULES = [
 ];
 const CODEX_TEXT = `# orca-hub allow.cjs: written for one worker and removed with its allow list.
 # Codex matches only the start of a command's argument list, so these rules are best-effort and weaker than
-# the Claude rules beside them. Not matched: a flag in a later position (gh pr create --title t --repo o/r),
-# a joined value (-Ro/r, --repo=o/r), other rm flag spellings (-r -f, -fR), and other paths under the
-# home directory or above the worktree. A session that bypasses approvals refuses a "prompt" command too.
+# the Claude rules beside them, and anything appended after an allowed prefix also runs. Not matched: a flag
+# in a later position (gh pr create --title t --repo o/r), a joined value (-Ro/r, --repo=o/r), git options
+# before the subcommand (git -C . push --force), remotes other than origin, other rm flag spellings (-r -f,
+# -fR), a later operand (rm -rf src ..), a $ expansion, and other paths under the home directory or above
+# the worktree. A session that bypasses approvals refuses a "prompt" command too.
 
 ` + CODEX_RULES.map((r) => `prefix_rule(\n${Object.entries(r).map(([k, v]) => `    ${k} = ${JSON.stringify(v)},\n`).join("")})\n`).join("\n");
 const LEVELS = { low: false, medium: true, high: true };
@@ -88,27 +101,30 @@ const git = (...args) => spawnSync("git", ["-C", wt, ...args], { encoding: "utf8
 const top = git("rev-parse", "--show-toplevel").stdout.trim();
 if (!top || fs.realpathSync(top) !== fs.realpathSync(wt)) fail(2, `not a git worktree root: ${wt}`);
 const record = path.join(git("rev-parse", "--absolute-git-dir").stdout.trim(), "orca-hub-allow.json");
-for (const p of [dir, file, codexDir, rulesDir, rulesFile]) if (fs.existsSync(p) && fs.lstatSync(p).isSymbolicLink()) fail(1, `refused: ${p} is a symlink`);
+// lstat, not existsSync: existsSync follows a link, so a dangling one would pass and a write would land at its target.
+const isLink = (p) => { try { return fs.lstatSync(p).isSymbolicLink(); } catch { return false; } };
+for (const p of [dir, file, ignore, codexDir, rulesDir, rulesFile, codexIgnore]) if (isLink(p)) fail(1, `refused: ${p} is a symlink`);
 const parse = (text, f) => { try { return JSON.parse(text); } catch { return fail(1, `not valid JSON: ${f}`); } };
 const readJson = (f) => (fs.existsSync(f) ? parse(fs.readFileSync(f, "utf8"), f) : null);
 
 function remove() {
   const rec = readJson(record);
   if (!rec) return;
-  const now = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null;
-  if (now === rec.written) {
-    if (rec.original === null) fs.rmSync(file);
-    else fs.writeFileSync(file, rec.original);
+  const claude = rec.claude === undefined ? rec : rec.claude; // a record from 0.1.1 keeps the Claude half at the top
+  const now = claude && fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null;
+  if (claude && now === claude.written) {
+    if (claude.original === null) fs.rmSync(file);
+    else fs.writeFileSync(file, claude.original);
   } else if (now !== null) { // changed since the write: take out only the rules it added
     const settings = parse(now, file);
     for (const key of Object.keys(RULES)) {
       const list = settings.permissions && settings.permissions[key];
-      if (list) settings.permissions[key] = list.filter((r) => !rec.added[key].includes(r));
+      if (list) settings.permissions[key] = list.filter((r) => !claude.added[key].includes(r));
     }
     fs.writeFileSync(file, JSON.stringify(settings, null, 2) + "\n");
   }
-  if (rec.madeIgnore) fs.rmSync(ignore, { force: true });
-  if (rec.madeDir && fs.existsSync(dir) && fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
+  if (claude && claude.madeIgnore) fs.rmSync(ignore, { force: true });
+  if (claude && claude.madeDir && fs.existsSync(dir) && fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
   if (rec.codex) { // the rules file carries this script's name, so it goes back to what was there
     if (rec.codex.original === null) fs.rmSync(rulesFile, { force: true });
     else fs.writeFileSync(rulesFile, rec.codex.original);
@@ -120,38 +136,48 @@ function remove() {
   fs.rmSync(record);
 }
 
+// Each half (Claude, Codex) is written on its own, so a repo that owns one half's files still lets the other agent's
+// workers run without prompts. A half is skipped when git would show its file and the repo owns that half's
+// .gitignore, or when git tracks its file (git add -A would commit the rules).
+function skipped(f, owner, agent) {
+  const tracked = git("ls-files", "--error-unmatch", f).status === 0;
+  const shown = git("check-ignore", "-q", "--no-index", f).status !== 0;
+  const why = tracked ? `${f} is tracked by git` : shown && fs.existsSync(owner) ? `git would show ${f} and the repo owns ${owner}` : "";
+  if (why) console.error(`not written: ${why}; a ${agent} worker keeps its prompts`);
+  return why ? null : { madeIgnore: shown };
+}
+
 function write() {
   remove();
   if (!LEVELS[level]) return;
-  const ignored = git("check-ignore", "-q", "--no-index", file).status === 0;
-  const codexIgnored = git("check-ignore", "-q", "--no-index", rulesFile).status === 0;
-  for (const [f, shown, owner] of [[file, !ignored, ignore], [rulesFile, !codexIgnored, codexIgnore]]) {
-    if (shown && fs.existsSync(owner)) {
-      console.error(`not written: git would show ${f} and the repo owns ${owner}; this worker keeps its prompts`);
-      process.exit(1);
+  const rec = { level, claude: skipped(file, ignore, "Claude Code"), codex: skipped(rulesFile, codexIgnore, "Codex") };
+  if (!rec.claude && !rec.codex) process.exit(1);
+  const { claude, codex } = rec;
+  if (claude) {
+    Object.assign(claude, { original: fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null, madeDir: !fs.existsSync(dir), added: {} });
+    const settings = claude.original === null ? {} : parse(claude.original, file);
+    settings.permissions = settings.permissions || {};
+    for (const [key, rules] of Object.entries(RULES)) {
+      const list = settings.permissions[key] || [];
+      claude.added[key] = rules.filter((r) => !list.includes(r));
+      settings.permissions[key] = [...list, ...claude.added[key]];
     }
+    claude.written = JSON.stringify(settings, null, 2) + "\n";
   }
-  const rec = { level, files: [file, rulesFile, ...(ignored ? [] : [ignore]), ...(codexIgnored ? [] : [codexIgnore])],
-    original: fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null,
-    madeDir: !fs.existsSync(dir), madeIgnore: !ignored, added: {},
-    codex: { original: fs.existsSync(rulesFile) ? fs.readFileSync(rulesFile, "utf8") : null,
-      madeDir: !fs.existsSync(codexDir), madeRulesDir: !fs.existsSync(rulesDir), madeIgnore: !codexIgnored } };
-  const settings = rec.original === null ? {} : parse(rec.original, file);
-  settings.permissions = settings.permissions || {};
-  for (const [key, rules] of Object.entries(RULES)) {
-    const list = settings.permissions[key] || [];
-    rec.added[key] = rules.filter((r) => !list.includes(r));
-    settings.permissions[key] = [...list, ...rec.added[key]];
-  }
-  rec.written = JSON.stringify(settings, null, 2) + "\n";
-  fs.mkdirSync(dir, { recursive: true });
-  fs.mkdirSync(rulesDir, { recursive: true });
+  if (codex) Object.assign(codex, { original: fs.existsSync(rulesFile) ? fs.readFileSync(rulesFile, "utf8") : null,
+    madeDir: !fs.existsSync(codexDir), madeRulesDir: !fs.existsSync(rulesDir) });
   fs.writeFileSync(record, JSON.stringify(rec, null, 2) + "\n");
-  if (rec.madeIgnore) fs.writeFileSync(ignore, IGNORE);
-  fs.writeFileSync(file, rec.written);
-  if (rec.codex.madeIgnore) fs.writeFileSync(codexIgnore, CODEX_IGNORE);
-  fs.writeFileSync(rulesFile, CODEX_TEXT);
-  console.log(`wrote ${level} rules to ${file} and ${rulesFile}`);
+  if (claude) {
+    fs.mkdirSync(dir, { recursive: true });
+    if (claude.madeIgnore) fs.writeFileSync(ignore, IGNORE);
+    fs.writeFileSync(file, claude.written);
+  }
+  if (codex) {
+    fs.mkdirSync(rulesDir, { recursive: true });
+    if (codex.madeIgnore) fs.writeFileSync(codexIgnore, CODEX_IGNORE);
+    fs.writeFileSync(rulesFile, CODEX_TEXT);
+  }
+  console.log(`wrote ${level} rules to ${[claude && file, codex && rulesFile].filter(Boolean).join(" and ")}`);
 }
 
 // remove deletes the record last, so a remove that stopped halfway leaves it for check to report.
@@ -162,8 +188,9 @@ function check() {
   for (const [f, text] of [[ignore, IGNORE], [codexIgnore, CODEX_IGNORE], [rulesFile, CODEX_TEXT]]) {
     if (fs.existsSync(f) && fs.readFileSync(f, "utf8") === text) left.push(`file ${f}`);
   }
+  const claude = rec && (rec.claude === undefined ? rec : rec.claude);
   const p = (readJson(file) || {}).permissions || {};
-  for (const [key, rules] of Object.entries(rec ? rec.added : {})) { // rules the original held are not ours
+  for (const [key, rules] of Object.entries(claude ? claude.added : {})) { // rules the original held are not ours
     for (const r of rules) if ((p[key] || []).includes(r)) left.push(`${key} ${r} in ${file}`);
   }
   for (const line of left) console.log(`left: ${line}`);
