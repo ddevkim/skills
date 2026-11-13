@@ -193,3 +193,20 @@ test("the push rules name their exact forms and the allow list names its limits"
   assert.match(autonomy, /"don't ask again" answer in a worker terminal is stored by Claude Code for the main checkout and outlives the worktree/,
     "the allow-list paragraph does not warn about a stored answer");
 });
+
+test("the hub records whether the parent's name was automatic and asks when it cannot give a name back", () => {
+  const vm = require("node:vm");
+  const sandbox = { window: {} };
+  vm.runInNewContext(read(path.join(skillDir, "templates", "state.js")), sandbox);
+  const keys = Object.keys(sandbox.window.HUB_STATE);
+  assert.strictEqual(sandbox.window.HUB_STATE.hubWorktreeOldNameMode, "");
+  assert.strictEqual(keys.indexOf("hubWorktreeOldNameMode"), keys.indexOf("hubWorktreeOldName") + 1);
+  const start = section(read(path.join(skillDir, "SKILL.md")), "Start or resume");
+  assert.match(start, /its `displayNameMode` as `hubWorktreeOldNameMode`/, "step 5 does not record the name mode");
+  assert.match(start, /rename it again when its name differs from the hub's/, "resume leaves an unrenamed parent");
+  const closing = section(read(path.join(refDir, "cleanup.md")), "Closing the hub");
+  assert.match(closing, /no command returns a workspace to its automatic name/, "the close hides that an automatic name comes back fixed");
+  assert.match(closing, /`hubWorktreeOldNameMode` is "" but the parent still carries the hub's name: ask the developer which name to give back/);
+  assert.match(closing, /`--workspace-status`/, "the close does not say what happens to the parent's board status");
+  assert.match(read(path.join(refDir, "upgrade.md")), /an existing `hubWorktree` is kept/);
+});
