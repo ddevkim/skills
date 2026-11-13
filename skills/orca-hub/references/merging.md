@@ -51,7 +51,7 @@ For a stack `main ← A ← B ← C`, plus `A ← D` where D's worker has not op
 2. `gh pr merge A --<method> --match-head-commit <old-A>`.
 3. A squash or rebase merge gives A's commits new hashes, so a plain rebase would replay them as duplicates. Each child rebases only its own commits. Send each worker its command, with the SHA you recorded:
    - Direct child with a PR (B): `git fetch origin && git rebase --onto origin/main <old-A> <B-branch>`, re-verify, `git push --force-with-lease`; then you run `gh pr edit <B> --base main` and set B's `base` to `main` in `state.js`.
-   - Grandchild (C), after B's force-push lands: `git rebase --onto origin/<B-branch> <old-B> <C-branch>`, force-with-lease push. Its PR base stays `<B-branch>`.
+   - Grandchild (C), after B's force-push lands: `git rebase --onto origin/<B-branch> <old-B> <C-branch>`, `git push --force-with-lease`. Its PR base stays `<B-branch>`.
    - Direct child without a PR yet (D): the same rebase as B, re-verify, and no push (protocol rule 9); its task's PR base becomes `main`, and it opens the PR only after its walkthrough is approved (protocol rule 6).
    - Any child in `review` or `walk`, with or without a PR: hold its command, because a rebase would move the head under the reviewer or the developer. Write the full command with its SHAs into the item's `pendingRebase` now, so it survives a compaction, and send it with your `APPROVED` reply, or with the PASS verdict of a review after the approval ([review.md](review.md), "After the verdict").
    A worker that already closed reopens when you `send` to it.

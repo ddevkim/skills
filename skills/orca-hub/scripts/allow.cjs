@@ -11,14 +11,14 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-// Claude Code rule syntax (code.claude.com/docs/en/permissions, verified on 2.1.323). Ask and deny
-// outrank allow, so an rm that may leave the worktree still prompts and a plain force push is refused.
-// Rules match command text, not paths: a best-effort limit, not a boundary.
+// Claude Code rule syntax (code.claude.com/docs/en/permissions, verified on 2.1.323). A rule without `*`
+// matches one exact command, so only the three pushes the protocol uses run without a prompt; every other
+// push asks, and the deny list refuses a plain force push as a second layer. Ask outranks allow, so an rm
+// that may leave the worktree still prompts. Rules match command text: a best-effort limit, not a boundary.
 const RULES = {
-  allow: ["Bash(git push)", "Bash(git push origin *)", "Bash(git push -u origin *)", "Bash(git push --force-with-lease)",
-    "Bash(git push --force-with-lease *)", "Bash(gh pr create *)", "Bash(rm *)"],
-  ask: ["Bash(rm /*)", "Bash(rm * /*)", "Bash(rm *..*)", "Bash(rm *~*)", "Bash(rm *$*)",
-    "Bash(git push *--delete*)", "Bash(git push * -d)", "Bash(git push * -d *)", "Bash(git push * :*)", "Bash(git push *--prune*)", "Bash(git push *--mirror*)"],
+  allow: ["Bash(git push)", "Bash(git push -u origin HEAD)", "Bash(git push --force-with-lease)",
+    "Bash(gh pr create *)", "Bash(rm *)"],
+  ask: ["Bash(rm /*)", "Bash(rm * /*)", "Bash(rm *..*)", "Bash(rm *~*)", "Bash(rm *$*)"],
   deny: ["Bash(git push --force *)", "Bash(git push * --force)", "Bash(git push * --force *)",
     "Bash(git push -f *)", "Bash(git push * -f)", "Bash(git push * -f *)", "Bash(git push * +*)"],
 };
