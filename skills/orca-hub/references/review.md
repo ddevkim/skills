@@ -2,12 +2,14 @@
 
 Every item passes an independent review before the developer is walked through it, so the developer reads code a second pair of eyes already passed and no PR opens on unreviewed code. Independent means a fresh context that did not write, plan, or split this code: never you, never the item's worker.
 
+Korean strings in this file are examples for a Korean-speaking developer: write the same meaning in the developer's language ([SKILL.md](../SKILL.md), "Language").
+
 ## When
 
 - After a "ready for review" ask whose walkthrough passed walkcheck ([walkthrough.md](walkthrough.md), "Check it, then have it reviewed"). The code is still local: the reviewer reads the worker's worktree.
 - Again whenever the item's own lines change afterwards: a developer's change request, or after the PR is open a CI fix, a conflict resolved during a rebase, a review fix. Compare the changed-lines hash (below) with the item's `reviewedDiff`.
 
-At the start of each round set the item `review`, `reviewRound` + 1 (a round restarted after a resume keeps its number), `ext` "독립 리뷰 <n>회차를 진행하고 있습니다", and record the head you send to the reviewer as the item's `reviewHead` (`git -C <worktree path> rev-parse HEAD`).
+At the start of each round set the item `review`, `reviewRound` + 1 (a round restarted after a resume keeps its number), an `ext` saying review round <n> is running ("독립 리뷰 <n>회차를 진행하고 있습니다"), and record the head you send to the reviewer as the item's `reviewHead` (`git -C <worktree path> rev-parse HEAD`).
 
 ## Changed-lines hash
 
@@ -46,16 +48,16 @@ Check, in this order:
 6. Walkthrough: its purpose, map, flow, and design say what the code really does. Anything that would give the developer a wrong picture of the code is a blocking finding.
 Answer with `VERDICT: PASS` or `VERDICT: CHANGES` on the first line, then one line per finding:
 `[blocking|non-blocking] <file>:<line> — <what is wrong> — <why it matters> — <suggested fix>`.
-PASS means no blocking finding. Write in <the PR body's language>.
+PASS means no blocking finding. Write in <the PR language: SKILL.md, "Language">.
 ```
 
 ## After the verdict
 
-1. Save it as `<hub>/reviews/<id>-r<n>.md`. Once the PR exists, post each saved round on it: `gh pr comment <n> --body-file <that file>`, under a heading such as "독립 리뷰 <n>회차: 통과" or "독립 리뷰 <n>회차: 수정 요청" (rounds from before the PR are posted when it opens: SKILL.md, `pr-open`).
+1. Save it as `<hub>/reviews/<id>-r<n>.md`. Once the PR exists, post each saved round on it: `gh pr comment <n> --body-file <that file>`, under a heading in the PR language naming the round and its verdict ("독립 리뷰 <n>회차: 통과", "독립 리뷰 <n>회차: 수정 요청") (rounds from before the PR are posted when it opens: SKILL.md, `pr-open`).
 2. Write the verdict into the walkthrough's `review`, so the developer sees it on the page (step 6): in a `node - <<'RV'` heredoc as in the walkthrough template, load the file, set `review` to every round so far (`{ round, verdict, head, findings: [{ level, file, line, what, fix }] }`, `fix` saying how an earlier round's finding was resolved, from the worker's "finding → commit" or your overrule), write it back with `JSON.stringify`.
 3. **PASS**: first check that the head still equals `reviewHead` (`git -C <path> rev-parse HEAD`); if it moved during the review, review again. Record `reviewedDiff` from the hash. Keep the non-blocking findings for the final report's follow-ups. Then:
    - No `walkDiff` yet (the developer has not approved this item's code): clear `reviewPending`; phases 4 if they are lower; check the page and set the item `walk` right away, then walk the developer through it ([walkthrough.md](walkthrough.md), "Show it to the developer").
    - `walkDiff` set: clear `reviewPending`, send the item's held `pendingRebase` if any (merging.md; clear it once sent), and set status and phases from what has happened: no PR yet → `active`, phases 5 (send the held `APPROVED` if the developer approved meanwhile); PR open without a green `worker_done` since → `pr`, phases 6; a green `worker_done` at this head → `ready`, phases 7, and for base `main` run the preflight in [merging.md](merging.md) and ask for merge approval with the new round's `changes` in the message (stacked: it waits for its parent).
-4. **CHANGES**: give the blocking findings to the item's worker. Before the PR: `reply --id <askId>` with `REVIEW: <findings>` (protocol rule 6c). With the PR open: `send` them (`send` reopens a closed worker; protocol rule 11). Item `active`, `ext` "리뷰에서 나온 <k>건을 고치고 있습니다" (k = blocking findings). When the worker asks "ready for review" again, or sends its "follow-up: review fixes", check the walkthrough again and start the next round.
+4. **CHANGES**: give the blocking findings to the item's worker. Before the PR: `reply --id <askId>` with `REVIEW: <findings>` (protocol rule 6c). With the PR open: `send` them (`send` reopens a closed worker; protocol rule 11). Item `active`, an `ext` saying the worker is fixing the k blocking findings ("리뷰에서 나온 <k>건을 고치고 있습니다"). When the worker asks "ready for review" again, or sends its "follow-up: review fixes", check the walkthrough again and start the next round.
 5. You may overrule a finding you judge wrong on technical grounds: log why, add it to the item's `overruled` ("<finding> — <why>"), write the reason into that finding's `fix`, and say it in a PR comment once the PR exists. The walkthrough page and the merge approval message show it, so the developer sees what you set aside. A finding that is really a product question goes to the developer.
 6. When the third round is still blocked on the same finding, stop the loop. Decide it yourself if it is technical and log the reason, or ask the developer.

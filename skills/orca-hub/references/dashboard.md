@@ -4,13 +4,15 @@ Read this before you fill `state.js` the first time, and keep to it on every lat
 
 `dashboard.html` is fixed and draws the layout. You control what it says through `state.js`, so the page is as clear as your sentences and as connected as your links.
 
+Korean strings in this file are examples for a Korean-speaking developer: write the same meaning in the developer's language ([SKILL.md](../SKILL.md), "Language").
+
 ## What the page shows, and from which field
 
 | On the page, top to bottom | Comes from | You write |
 |---|---|---|
 | Header line and headline (the developer's to-do count) | `title`, `owner`, counts | `title`: the feature's name in the developer's words |
 | **To-do list**: one numbered row per thing only the developer can do, each with its link and how to answer | prompt waits (from `sync.cjs`), `needs`, open `decisions`, items in `walk`, `ready` items on `main`, `blocked` items | `ask`, `needs`, and each decision's `text`, `options`, `recommend`, `items` |
-| **Stage strip**: how many PRs are in each stage, 대기 → 작업 중 → 독립 리뷰 → 워크스루 대기 → PR 열림·CI → 병합 준비됨 → 병합됨; each id jumps to its card | item `status` | nothing more: keep `status` true |
+| **Stage strip**: how many PRs are in each stage, 대기 → 작업 중 → 독립 리뷰 → 워크스루 대기 → PR 열림·CI → 병합 준비됨 → 병합됨 (English: Waiting → Working → Review → Walkthrough waiting → PR open · CI → Ready to merge → Merged); each id jumps to its card | item `status` | nothing more: keep `status` true |
 | What to know now | `summary` | at most 3 sentences |
 | Governing documents | `spec.md`, `protocol.md`, `refs` | `refs` |
 | **Flow**: lanes of cards with arrows; each card has its status, PR link, CI, walkthrough, task spec, what the PR does so far, and the worker's live activity | `lanes`, `live.js` (a worker's newest `SUMMARY:` line shows on its card within a sync cycle, until you handle that message; from then on your `done` shows, so a line you rewrote replaces the worker's) | item `title`, `done`, `ext`, `risk`, `after`, `waiting`, `pr`, `prUrl`, `walkthrough` |
@@ -22,7 +24,7 @@ Read this before you fill `state.js` the first time, and keep to it on every lat
 Write every field the way you would say it to a colleague who was not here.
 
 1. **A whole plain sentence, in the developer's language.** Subject, verb, ending. "N2 가 N1 위에 쌓여 있어서 N1 을 먼저 병합해야 합니다", not "N1 선행 필요". No clever or compressed phrasing.
-2. **The page's own words for stages**: 시험 실패 확인, 구현 통과, 전체 검증, 독립 리뷰, 워크스루, PR 열림, CI 통과, 병합. Never the protocol's (`ci-green`, `worker_done`, `r2`, "phase 6"), a dispatch id, or a bare commit hash without what it is.
+2. **The page's own words for stages**: 시험 실패 확인, 구현 통과, 전체 검증, 독립 리뷰, 워크스루, PR 열림, CI 통과, 병합 (English: Test fails, Code passes, Full check, Review passed, Walkthrough OK, PR open, CI passed, Merged). Never the protocol's (`ci-green`, `worker_done`, `r2`, "phase 6"), a dispatch id, or a bare commit hash without what it is.
 3. **Name the thing**: the item id, and the PR number once it exists ("N1 (#41)"). "그 PR", "위 작업" mean nothing on a page read alone.
 4. **Say the consequence, not only the fact.** A wait says what it waits for and what starts after; a risk says what could break; a decision says what depends on the answer.
 5. **Each fact once among what is current.** `ask` does not repeat the rows under it. `summary` does not repeat a card or a decision. Never copy what `sync.cjs` shows live: CI pass and fail counts, the worker's current command. `log` is history, so an event appears there as well as in the field it changed.

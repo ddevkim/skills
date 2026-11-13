@@ -2,6 +2,8 @@
 
 Read this when you resume a hub whose `state.js` has no `v: 2`, or has `v: 2` but no `hubWorktree` field (then do only step 5 of the second part). A folder with no `sync.cjs` is the oldest layout: do both parts in order. A folder that has `sync.cjs` needs only the second part. Then go back to SKILL.md, "Start or resume".
 
+Korean strings in this file are examples for a Korean-speaking developer: write the same meaning in the developer's language ([SKILL.md](../SKILL.md), "Language").
+
 ## From a folder with no sync.cjs
 
 1. **state.js.**
@@ -10,7 +12,7 @@ Read this when you resume a hub whose `state.js` has no `v: 2`, or has `v: 2` bu
    - An item whose PR is open never had a walkthrough: set `walkPending: true`.
    - An `id` that carries a PR number (`"N1 #41"`, `"#30"`) keeps only a name (`"N1"`, `"P30"`), and the number goes to `pr` and `prUrl`. Give open PRs `base`.
    - Workers whose PR is open and who already sent `worker_done` get tone `support`.
-2. **spec.md.** If there is none, write one from `state.js`, `protocol.md`, and the task specs, with IDs, and mark it "재구성".
+2. **spec.md.** If there is none, write one from `state.js`, `protocol.md`, and the task specs, with IDs, and mark it as reconstructed ("재구성").
 
 ## To v: 2 (review before the walkthrough)
 

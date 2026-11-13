@@ -54,7 +54,7 @@ test("all present: one ok line with versions, exit 0", () => {
 test("orca absent: names Orca and where to get it", () => {
   const r = run({ orca: null });
   assert.strictEqual(r.code, 1);
-  assert.ok(r.lines.some((l) => /^missing: .*Orca.*https:\/\/www\.onorca\.dev/.test(l)), r.lines.join("\n"));
+  assert.ok(r.lines.some((l) => /^missing: .*Orca.*https:\/\/orca\.dev\b/.test(l)), r.lines.join("\n"));
 });
 
 test("orca app closed: tells to open the Orca app", () => {
