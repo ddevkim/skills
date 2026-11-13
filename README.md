@@ -16,7 +16,7 @@ You discuss a feature with Claude Code or Codex, then invoke orca-hub. Your sess
 
 ### When a hub is worth it
 
-- Use a hub when the work is two or more PRs (more than one outcome, or over about 15 files / 300 changed lines), and at least two of them can run at the same time or stack.
+- Use a hub when the work is two or more PRs (more than one outcome, or over the size target of ≤ 15 files / 300 changed lines, counting hand-written code and tests), and at least two of them can run at the same time or stack.
 - Skip it for one small PR, or for work that cannot be split into PRs that merge alone. The hub says so and offers to do the work in your session instead.
 
 ### Prerequisites
@@ -31,6 +31,8 @@ The skill installs nothing. It checks these itself before a hub starts, with one
 ```sh
 node <skill folder>/scripts/preflight.cjs
 ```
+
+It prints one `missing:` line per problem. A missing `orchestration` skill comes with the command that installs it: `orca skills install --skill orchestration`.
 
 ### Install
 
@@ -64,6 +66,7 @@ npx skills add ddevkim/skills --skill orca-hub
 The hub then asks you for:
 
 - confirmation of the spec it wrote from your discussion,
+- once, whether to keep its run defaults (the worker agent and model, how many workers run at a time, the PR assignee),
 - product decisions it should not guess,
 - a walkthrough of each PR before the PR opens,
 - approval of each merge,
@@ -71,7 +74,7 @@ The hub then asks you for:
 
 ### Language
 
-The dashboard shows its labels in Korean or English, from `lang` (`"ko"` or `"en"`) in the hub's `state.js`.
+The dashboard shows its labels in Korean or English, from `lang` (`"ko"` or `"en"`) in the hub's `state.js`. The skill creates that file in its hub folder, `<workspaces root>/_hub/<feature>/state.js` (by default `$HOME/orca/workspaces/<repo>/_hub/<feature>/`).
 
 ### Update
 
