@@ -36,6 +36,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 0 16px 48px; }
 h1, h2 { font-family: var(--serif); font-weight: 400; margin: 0; text-wrap: balance; }
 h1 { font-size: 32px; line-height: 1.25; margin-top: 20px; }
 h2 { font-size: 22px; line-height: 1.3; margin-bottom: 14px; }
+h3 { font-size: 13px; font-weight: 600; color: var(--text-2); margin: 12px 0 4px; }
 .meta { font-size: 13px; color: var(--text-2); border-bottom: 1px solid var(--line); padding: 12px 0; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 20px; }
 .num { font-size: 40px; font-weight: 500; line-height: 1; white-space: nowrap; }
@@ -72,7 +73,7 @@ ul.know { margin: 14px 0 0; padding: 0 0 0 20px; font-size: 15px; } ul.know li {
 .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; }
 .node { min-width: 180px; flex: 1 1 180px; max-width: 260px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--card); }
 .node.s-merged { border-color: var(--good); }
-.node.s-active, .node.s-pr { border-color: var(--clay); box-shadow: 0 0 0 2px var(--clay-bg); }
+.node.s-active, .node.s-pr, .node.s-hub { border-color: var(--clay); box-shadow: 0 0 0 2px var(--clay-bg); }
 .node.s-review { border-color: var(--watch); box-shadow: 0 0 0 2px var(--watch-bg); }
 .node.s-ready { border-color: var(--good); box-shadow: 0 0 0 2px var(--good-bg); }
 .node.s-walk, .node.s-you { border-color: var(--bad); box-shadow: 0 0 0 2px var(--bad-bg); }
@@ -148,7 +149,10 @@ const L10N = {
     legend: ["병합됨·병합 준비됨", "작업 중·PR 열림", "리뷰 중·위험 표시·승인 뒤 변경", "대기", "막힘·승인 대기·입력 대기"],
     checkH: "PR별 체크포인트: 칸을 누르면 워크스루나 PR 이 열립니다", thPr: "PR", thLane: "레인",
     decidedH: "지금까지 정한 것", decidedNone: "아직 정한 것이 없다",
-    workersH: (n, cap) => `작업자 ${n}명 작업 중 (동시 상한 ${cap}명)`, startedNew: "시작됨 · 허브 반영 전"
+    workersH: (n, cap) => `작업자 ${n}명 작업 중 (동시 상한 ${cap}명)`, startedNew: "시작됨 · 허브 반영 전",
+    hubGoes: "허브가 이어서 진행", level: { medium: "자율 단계: 중간", high: "자율 단계: 높음" },
+    levelTip: { medium: "제품 결정과 병합 승인만 묻고, PR 은 워크스루를 기다리지 않고 엽니다.", high: "되돌릴 수 없는 작업 앞에서만 묻고, 제품 결정과 병합은 허브가 스스로 합니다." },
+    hubDecH: "허브가 스스로 정한 것", yourDecH: o => `${o}님이 정한 것`, hubDecLine: n => `허브가 스스로 정한 것이 ${n}건 있습니다.`
   },
   en: {
     lang: "en", docTitle: t => `${t} progress`,
@@ -182,7 +186,10 @@ const L10N = {
     legend: ["Merged · ready", "Working · PR open", "In review · risk · changed after OK", "Waiting", "Blocked · needs OK · waiting for input"],
     checkH: "Checkpoints per PR: click a box to open the walkthrough or PR", thPr: "PR", thLane: "Lane",
     decidedH: "Decided so far", decidedNone: "Nothing decided yet",
-    workersH: (n, cap) => `${n} ${n === 1 ? "worker" : "workers"} working (limit ${cap})`, startedNew: "Started · hub not updated"
+    workersH: (n, cap) => `${n} ${n === 1 ? "worker" : "workers"} working (limit ${cap})`, startedNew: "Started · hub not updated",
+    hubGoes: "Hub carries on", level: { medium: "Autonomy: medium", high: "Autonomy: high" },
+    levelTip: { medium: "You are asked for product decisions and merge approvals; PRs open without waiting for the walkthrough.", high: "You are asked only before irreversible actions; the hub decides product questions and merges on its own." },
+    hubDecH: "Decided by the hub", yourDecH: o => `Decided by ${o}`, hubDecLine: n => `The hub decided ${n} ${n === 1 ? "question" : "questions"} on its own.`
   }
 };
 let T = L10N.ko;
@@ -198,11 +205,15 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "
 const app = document.getElementById("app");
 const onMain = i => i.base === "main";
 const waitsApproval = i => i.status === "ready" && onMain(i) && !i.walkPending && !i.reviewPending;
+// state.js autonomy: "low" (default), "medium" (the hub carries walkthroughs on), "high" (it also merges ready PRs on main).
+let LEVEL = "low";
+const hubLed = i => (LEVEL !== "low" && i.status === "walk") || (LEVEL === "high" && waitsApproval(i));
+const yours = i => waitsApproval(i) && !hubLed(i);
 const walkHref = (i, step = 1) => /^[A-Za-z0-9_-]+-w\d+$/.test(String(i.walkthrough || "")) ? `walkthrough.html?w=${i.walkthrough}#${step}` : "";
 const walkLink = i => walkHref(i) ? `<a href="${walkHref(i)}" target="_blank" rel="noopener">${T.walkLink}</a>` : "";
 // The developer approved round walkApproved; a later round means the code changed after that approval.
 const changedAfter = i => i.walkApproved && i.walkthrough && i.walkthrough !== i.walkApproved && !["walk", "merged"].includes(i.status);
-const statusOf = i => waitsApproval(i) ? [T.waitsMerge, "bad"] : i.walkPending && i.status !== "walk" ? [T.needWalk, "bad"] : i.reviewPending && i.status !== "review" ? [T.needReview, "bad"]
+const statusOf = i => hubLed(i) ? [T.hubGoes, "clay"] : waitsApproval(i) ? [T.waitsMerge, "bad"] : i.walkPending && i.status !== "walk" ? [T.needWalk, "bad"] : i.reviewPending && i.status !== "review" ? [T.needReview, "bad"]
   : ST[i.status] ? [T.st[i.status], ST[i.status]] : [T.st.todo, ST.todo];
 const prLink = i => i.pr ? (/^https:\/\//.test(i.prUrl || "") ? `<a href="${esc(i.prUrl)}" target="_blank" rel="noopener">#${esc(i.pr)}</a>` : `#${esc(i.pr)}`) : "";
 // A link the hub wrote: https, or a file inside the hub folder (specs/N1.md). Anything else is shown as plain text.
@@ -255,6 +266,7 @@ function render() {
     return;
   }
   document.title = T.docTitle(S.title);
+  LEVEL = ["medium", "high"].includes(S.autonomy) ? S.autonomy : "low";
   for (const k of ["lanes", "workers", "decisions", "log"]) if (!Array.isArray(S[k])) S[k] = [];
   for (const l of S.lanes) if (!Array.isArray(l.items)) l.items = [];
   const W = (L && L.workers) || {}, P = (L && L.prs) || {}, NEW = (L && L.discovered) || {};
@@ -265,8 +277,8 @@ function render() {
   const prs = own.flatMap(l => l.items);
   const merged = prs.filter(i => i.status === "merged").length;
   const reviewing = prs.filter(i => i.status === "review").length;
-  const approvals = prs.filter(waitsApproval);
-  const walks = prs.filter(i => i.status === "walk");
+  const approvals = prs.filter(yours);
+  const walks = prs.filter(i => i.status === "walk" && !hubLed(i));
   CARDS = new Set(S.lanes.flatMap(l => l.items).map(i => String(i.id)));
   const blockedItems = prs.filter(i => i.status === "blocked");
   const blockedAll = S.lanes.flatMap(l => l.items).filter(i => i.status === "blocked"); // another owner's blocked item still needs the developer
@@ -326,7 +338,7 @@ function render() {
     const risks = (i.risk || []).map(r => `<span class="pill watch">${esc(r)}</span>`).join("");
     const docs = [walkLink(i), started.has(i.id) && okId(i.id) ? refLink(`specs/${i.id}.md`, T.specLink) : ""].filter(Boolean).join(" · ");
     const after = (Array.isArray(i.after) ? i.after : typeof i.after === "string" && i.after ? [i.after] : []).map(jump).join(", ");
-    return `<div class="node s-${esc(i.status)}${waitsApproval(i) ? " s-you" : ""}"${okId(i.id) ? ` id="i-${i.id}"` : ""}><div class="id">${esc(i.id)} ${prLink(i)}</div><div class="t">${esc(i.title)}</div>${sofar(i) ? `<div class="sofar">${esc(sofar(i))}</div>` : ""}<div class="pills"><span class="pill ${tone}">${label}</span>${reported(i)}${ciPill(i)}${risks}${i.waiting ? `<span class="pill watch">${T.waitingPill(esc(i.waiting))}</span>` : ""}</div>${docs ? `<div class="ext">${docs}${changedAfter(i) ? ` <span class="pill watch">${T.changed}</span>` : ""}</div>` : ""}${after ? `<div class="ext">${T.afterLine(after)}</div>` : ""}${i.status === "merged" && i.pr ? `<div class="ext">${T.mergedVia(prLink(i), i.mergeSha ? ` · <span class="mono">${esc(String(i.mergeSha).slice(0, 7))}</span>` : "")}</div>` : ""}${i.ext ? `<div class="ext">${esc(i.ext)}</div>` : ""}${i.status === "merged" ? "" : nowLine(W[i.id], NEW[i.id] && i.status === "todo" ? { ...i, status: "active" } : i)}</div>`;
+    return `<div class="node s-${hubLed(i) ? "hub" : esc(i.status)}${yours(i) ? " s-you" : ""}"${okId(i.id) ? ` id="i-${i.id}"` : ""}><div class="id">${esc(i.id)} ${prLink(i)}</div><div class="t">${esc(i.title)}</div>${sofar(i) ? `<div class="sofar">${esc(sofar(i))}</div>` : ""}<div class="pills"><span class="pill ${tone}">${label}</span>${reported(i)}${ciPill(i)}${risks}${i.waiting ? `<span class="pill watch">${T.waitingPill(esc(i.waiting))}</span>` : ""}</div>${docs ? `<div class="ext">${docs}${changedAfter(i) ? ` <span class="pill watch">${T.changed}</span>` : ""}</div>` : ""}${after ? `<div class="ext">${T.afterLine(after)}</div>` : ""}${i.status === "merged" && i.pr ? `<div class="ext">${T.mergedVia(prLink(i), i.mergeSha ? ` · <span class="mono">${esc(String(i.mergeSha).slice(0, 7))}</span>` : "")}</div>` : ""}${i.ext ? `<div class="ext">${esc(i.ext)}</div>` : ""}${i.status === "merged" ? "" : nowLine(W[i.id], NEW[i.id] && i.status === "todo" ? { ...i, status: "active" } : i)}</div>`;
   };
   const rows = own.flatMap(l => l.items.map(i => {
     const done = i.phases || 0;
@@ -343,10 +355,13 @@ function render() {
   const stageOf = i => i.status === "todo" && NEW[i.id] ? "active" : STAGES.includes(i.status) ? i.status : "todo"; // a worker that already started counts as working
   const stages = STAGES.map(k => {
     const here = prs.filter(i => i.status !== "blocked" && stageOf(i) === k);
-    const you = (k === "walk" && here.length) || (k === "ready" && here.some(waitsApproval));
+    const you = (k === "walk" && here.some(i => !hubLed(i))) || (k === "ready" && here.some(yours));
     return `<div class="stage ${!here.length ? "zero" : you ? "you" : k === "merged" ? "done" : ""}"><div class="n">${here.length}</div><div class="lbl">${T.stage[k]}</div><div class="ids">${here.map(i => jump(i.id)).join("")}</div></div>`;
   }).join("") + (blockedItems.length ? `<div class="stage you"><div class="n">${blockedItems.length}</div><div class="lbl">${T.st.blocked}</div><div class="ids">${blockedItems.map(i => jump(i.id)).join("")}</div></div>` : "");
   const know = list(S.summary).slice(0, 3);
+  const hubDec = S.decisions.filter(d => d.by === "hub" && d.status === "answered");
+  const hubLine = LEVEL === "high" && hubDec.length ? `<li><a href="#decided">${T.hubDecLine(hubDec.length)}</a></li>` : "";
+  const hubList = hubDec.length ? `<h3>${T.hubDecH}</h3><ul class="items">${hubDec.map(d => `<li>${d.id ? `<b>${esc(d.id)}</b> ` : ""}${esc(d.text)} → <b>${esc(d.answer)}</b></li>`).join("")}</ul><h3>${T.yourDecH(esc(S.owner))}</h3>` : "";
   const refs = [refLink("spec.md", T.specDoc), refLink("protocol.md", T.protocolDoc), ...(Array.isArray(S.refs) ? S.refs : []).filter(r => r && r.label).slice(0, 6).map(r => refLink(r.href, r.label))];
   const syncM = L ? mins(L.at) : null;
   const sync = S.closed ? `<span class="pill idle">${T.syncDone}</span>`
@@ -362,11 +377,11 @@ function render() {
   app.innerHTML = `
 ${H.count && lagM >= HUB_LAG_MIN && !S.closed ? `<div class="ask ${lagM >= 15 ? "warnbar" : ""}">${T.hubLag(esc(H.count), H.more, ago(H.oldestAt))}</div>` : ""}
 ${stateBroken ? `<div class="ask warnbar">${T.stateBroken}</div>` : ""}
-<div class="meta"><span>${T.meta(esc(S.title), esc(S.owner), esc(S.baseSha))}</span><span>${T.updated(esc(S.updatedAt))} · ${sync}${syncErr}</span></div>
+<div class="meta"><span>${T.meta(esc(S.title), esc(S.owner), esc(S.baseSha))}${LEVEL === "low" ? "" : ` · <span title="${esc(T.levelTip[LEVEL])}">${T.level[LEVEL]}</span>`}</span><span>${T.updated(esc(S.updatedAt))} · ${sync}${syncErr}</span></div>
 <h1>${esc(headline)}</h1>
 ${asks}
 <div class="stages">${stages}</div>
-${know.length ? `<ul class="know">${know.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+${know.length || hubLine ? `<ul class="know">${know.map(x => `<li>${esc(x)}</li>`).join("")}${hubLine}</ul>` : ""}
 <div class="refs"><span>${T.refsLabel}</span>${refs.join("")}</div>
 <section class="card">
   <h2>${T.flowH}${S.flowSummary ? `: ${esc(S.flowSummary)}` : ""}</h2>
@@ -381,7 +396,7 @@ ${know.length ? `<ul class="know">${know.map(x => `<li>${esc(x)}</li>`).join("")
   </table></div>
 </section>
 <section class="grid2">
-  <div class="card"><h2>${T.decidedH}</h2><ul class="items">${S.decisions.filter(d => d.status !== "open").map(d => { const st = DEC[d.status] ? d.status : "watching"; return `<li><span class="pill ${DEC[st]}">${T.dec[st]}</span> ${d.id ? `<b>${esc(d.id)}</b> ` : ""}${esc(d.text)}${d.answer ? ` → <b>${esc(d.answer)}</b>` : ""}</li>`; }).join("") || `<li>${T.decidedNone}</li>`}</ul></div>
+  <div class="card"${hubDec.length ? ' id="decided"' : ""}><h2>${T.decidedH}</h2>${hubList}<ul class="items">${S.decisions.filter(d => d.status !== "open" && !hubDec.includes(d)).map(d => { const st = DEC[d.status] ? d.status : "watching"; return `<li><span class="pill ${DEC[st]}">${T.dec[st]}</span> ${d.id ? `<b>${esc(d.id)}</b> ` : ""}${esc(d.text)}${d.answer ? ` → <b>${esc(d.answer)}</b>` : ""}</li>`; }).join("") || `<li>${T.decidedNone}</li>`}</ul></div>
   <div class="card"><h2>${T.workersH(active, esc(S.workerCap))}</h2><ul class="items">${Object.entries(NEW).map(([id, d]) => `<li><span class="pill clay">${T.startedNew}</span> <b>${esc(id)}</b> · <span class="mono">${esc(String(d.path || "").split("/").pop())}</span>${nowLine(W[id], { status: "active" })}</li>`).join("")}${S.workers.map(w => `<li><span class="pill ${TONE[w.tone] || "idle"}">${esc(w.state)}</span> <b>${esc(w.lane)} ${esc(w.item)}</b> · <span class="mono">${esc(w.worktree)}</span>${w.tone === "done" ? "" : nowLine(W[w.item], items[w.item])}</li>`).join("")}${S.log.slice(0, 8).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>
 </section>`;
 }

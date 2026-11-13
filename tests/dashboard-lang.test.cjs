@@ -166,3 +166,111 @@ test("F5 English headline counts to-dos in singular and plural", async () => {
   assert.strictEqual(await h1(["a"]), "Notify: Dev has 1 thing to do");
   assert.strictEqual(await h1(["a", "b", "c"]), "Notify: Dev has 3 things to do");
 });
+
+// P8 / C11: the to-do list follows state.js `autonomy` ("low" | "medium" | "high"; absent or unknown = "low").
+const AUTO = {
+  title: "Auto", owner: "Dev", updatedAt: "2026-11-13 11:50", baseSha: "a1b2c3d", workerCap: 2, ask: "", summary: ["One fact."],
+  needs: ["Log in to the staging DB."], refs: [], log: [],
+  workers: [{ lane: "b", item: "P1", worktree: "wt-p1", state: "coding", tone: "active" }],
+  lanes: [{ name: "b", countsAsPr: true, items: [
+    item("P1", "active"), item("W1", "walk", { walkthrough: "W1-w1", phases: 4 }),
+    item("R1", "ready", { base: "main", pr: 9, prUrl: "https://github.com/o/r/pull/9", phases: 7, walkthrough: "R1-w1" }),
+    item("B1", "blocked", { ext: "needs a key" })] }],
+  decisions: [{ id: "Q1", status: "open", text: "Default off?", options: ["off", "on"], recommend: "off" },
+    { id: "H1", status: "answered", by: "hub", text: "Label wording?", answer: "short" },
+    { id: "D1", status: "answered", text: "Who merges?", answer: "dev" }]
+};
+const AUTO_LIVE = { at: ago(0.2), workers: { P1: { state: "working", at: ago(1), wait: "Allow push?" } } };
+const LEVELS = ["low", "medium", "high"];
+const renderAuto = (autonomy, lang, s = AUTO) =>
+  render(current(), { states: [{ ...s, lang, ...(autonomy === undefined ? {} : { autonomy }) }], live: AUTO_LIVE });
+// Each to-do row as "<kind> <item id or ->".
+const todoRows = html => [...((html.match(/<ol class="todo">([\s\S]*?)<\/ol>/) || [])[1] || "").matchAll(/<li><span class="pill bad">([^<]*)<\/span> ([\s\S]*?)<div class="how">/g)]
+  .map(m => `${m[1]} ${(m[2].match(/#i-([\w-]+)/) || [])[1] || "-"}`);
+// A card's classes, then the tone and label of its status pill.
+const card = (html, id) => { const m = html.match(new RegExp(`<div class="(node[^"]*)" id="i-${id}">[\\s\\S]*?<div class="pills"><span class="pill (\\w+)">([^<]*)</span>`)); return m && m.slice(1); };
+const stageCls = (html, label) => (html.match(new RegExp(`<div class="stage ([^"]*)"><div class="n">\\d+</div><div class="lbl">${label}<`)) || [])[1];
+
+test("C11 the to-do list holds exactly what each level leaves to the developer", async () => {
+  for (const lang of ["ko", "en"]) {
+    const t = (await renderAuto("low", lang)).table[lang];
+    const want = {
+      low: [`${t.kWait} P1`, `${t.kNeed} -`, `${t.kDec} -`, `${t.kWalk} W1`, `${t.kMerge} R1`, `${t.kBlocked} B1`],
+      medium: [`${t.kWait} P1`, `${t.kNeed} -`, `${t.kDec} -`, `${t.kMerge} R1`, `${t.kBlocked} B1`],
+      high: [`${t.kWait} P1`, `${t.kNeed} -`, `${t.kDec} -`, `${t.kBlocked} B1`]
+    };
+    for (const level of LEVELS) {
+      const r = await renderAuto(level, lang);
+      assert.deepStrictEqual(todoRows(r.html), want[level], `${lang} ${level}: rows`);
+      assert.strictEqual(r.html.match(/<h1>([\s\S]*?)<\/h1>/)[1], t.headTodo("Auto", "Dev", want[level].length), `${lang} ${level}: headline`);
+      if (lang === "en") assert.ok(!HANGUL.test(visible(r)), `${level}: Korean in English render`);
+    }
+  }
+});
+
+test("P8 absent, low, and unknown autonomy render the same", async () => {
+  for (const lang of ["ko", "en"]) {
+    const base = visible(await renderAuto(undefined, lang));
+    for (const a of ["low", "max", 3]) assert.strictEqual(visible(await renderAuto(a, lang)), base, `${lang} autonomy ${a}`);
+    for (const [name, v] of Object.entries(VARIANTS))
+      assert.strictEqual(visible(await renderVariant(current(), { ...v, states: v.states.map(s => s && { ...s, autonomy: "low" }) }, lang)),
+        visible(await renderVariant(current(), v, lang)), `${lang} ${name}`);
+  }
+});
+
+test("C11 a card the hub carries on does not ask the developer to act", async () => {
+  for (const lang of ["ko", "en"]) {
+    const low = (await renderAuto("low", lang)), t = low.table[lang];
+    assert.ok(t.hubGoes, "hubGoes label exists");
+    assert.deepStrictEqual(card(low.html, "W1"), ["node s-walk", "bad", t.st.walk]);
+    assert.deepStrictEqual(card(low.html, "R1"), ["node s-ready s-you", "bad", t.waitsMerge]);
+    assert.strictEqual(stageCls(low.html, t.stage.walk), "you");
+    const med = (await renderAuto("medium", lang)).html, high = (await renderAuto("high", lang)).html;
+    assert.deepStrictEqual(card(med, "W1"), ["node s-hub", "clay", t.hubGoes], `${lang} medium walk`);
+    assert.deepStrictEqual(card(med, "R1"), ["node s-ready s-you", "bad", t.waitsMerge], `${lang} medium ready`);
+    assert.strictEqual(stageCls(med, t.stage.walk), "", `${lang} medium stage`);
+    assert.deepStrictEqual(card(high, "W1"), ["node s-hub", "clay", t.hubGoes], `${lang} high walk`);
+    assert.deepStrictEqual(card(high, "R1"), ["node s-hub", "clay", t.hubGoes], `${lang} high ready`);
+    assert.strictEqual(stageCls(high, t.stage.ready), "", `${lang} high ready stage`);
+  }
+});
+
+test("C11 the header names the level at medium and high only", async () => {
+  for (const lang of ["ko", "en"]) {
+    const t = (await renderAuto("low", lang)).table[lang];
+    assert.ok(t.level && t.levelTip, "level labels exist");
+    const meta = async a => (await renderAuto(a, lang)).html.match(/<div class="meta">([\s\S]*?)<\/div>/)[1];
+    for (const level of ["medium", "high"])
+      assert.ok((await meta(level)).includes(` · <span title="${t.levelTip[level]}">${t.level[level]}</span>`), `${lang} ${level}`);
+    const low = (await renderAuto("low", lang)).html;
+    for (const level of ["medium", "high"]) assert.ok(!low.includes(t.level[level]) && !low.includes(t.levelTip[level]), `${lang} low shows ${level}`);
+  }
+});
+
+test("C11 decisions the hub took alone are listed under their own heading", async () => {
+  for (const lang of ["ko", "en"]) {
+    const t = (await renderAuto("low", lang)).table[lang];
+    assert.ok(t.hubDecH && t.hubDecLine, "hub decision labels exist");
+    for (const level of LEVELS) {
+      const html = (await renderAuto(level, lang)).html;
+      const h = html.indexOf(`<h3>${t.hubDecH}</h3>`), hub = html.indexOf("Label wording? → <b>short</b>"), dev = html.indexOf("Who merges?");
+      assert.ok(h > 0 && h < hub && hub < dev, `${lang} ${level}: heading, hub decision, then the developer's`);
+      assert.strictEqual(html.split("Label wording?").length, 2, `${lang} ${level}: listed once`);
+      const line = `<a href="#decided">${t.hubDecLine(1)}</a>`;
+      assert.strictEqual(html.includes(line), level === "high", `${lang} ${level}: count line`);
+      if (level === "high") assert.ok(html.includes('<div class="card" id="decided">'), `${lang}: the line's target`);
+    }
+    const none = { ...AUTO, decisions: AUTO.decisions.filter(d => d.by !== "hub") };
+    const html = (await renderAuto("high", lang, none)).html;
+    assert.ok(!html.includes(t.hubDecH), `${lang}: heading without hub decisions`);
+    assert.ok(!html.includes('href="#decided"'), `${lang}: count line without hub decisions`);
+  }
+});
+
+test("C11 the template state.js starts at low and shows a decision the hub took alone", () => {
+  const src = fs.readFileSync(path.join(ROOT, "skills/orca-hub/templates/state.js"), "utf8");
+  const ctx = {}; ctx.window = ctx;
+  vm.runInNewContext(src, ctx);
+  assert.strictEqual(ctx.HUB_STATE.autonomy, "low");
+  assert.match(src, /\/\/.*by: "hub", status: "answered"/, "a commented example decision with by: \"hub\"");
+});

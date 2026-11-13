@@ -14,6 +14,7 @@ window.HUB_STATE = {
   hubWorktree: "/Users/me/orca/workspaces/app/hub-notify",  // the hub session's Orca workspace ("" outside one): workers are its children
   lastMsgId: "",             // id of the last Orca message handled: resume handles the inbox messages after it
   v: 2,                      // layout version: review before walkthrough. A state.js without it is upgraded first (references/upgrade.md)
+  autonomy: "low",          // "low" | "medium" | "high": what the hub leaves to the developer (SKILL.md); absent or unknown = "low"
   lang: "ko",                // "ko" or "en": the page's own labels; the hub's sentences follow SKILL.md, "Language"
   closed: false,             // true after the final sweep: sync.cjs exits, the page shows the run as finished
   // Every sentence in this file is read by the developer: write it by references/dashboard.md.
@@ -83,7 +84,8 @@ window.HUB_STATE = {
     // status: open (the developer must answer: shown in the to-do list on top) | watching (the hub is checking) | answered
     // id: the spec.md handle. text: the question as you would ask a colleague, then what depends on it.
     // options (2-4) and recommend (one of them): rendered under an open decision. items: ids waiting for the answer.
-    // answer: the developer's choice, once answered.
+    // answer: the developer's choice, once answered. by: "hub" marks one the hub decided alone (listed apart), e.g.
+    // { id: "P3", by: "hub", status: "answered", text: "알림 문구는 짧게 쓸까요?", answer: "짧게 쓴다" }
     { id: "Q1", status: "open", text: "밤 10시부터 아침 8시까지는 알림을 기본으로 끌까요? N2 의 기본값과 N4 의 안내 문구가 이 답으로 정해집니다.",
       options: ["기본으로 끈다", "기본으로 켠다"], recommend: "기본으로 끈다", items: ["N2", "N4"] },
     { id: "P2", status: "answered", text: "병합은 누가 하나요?", answer: "개발자가 승인하면 허브가 병합한다" }
