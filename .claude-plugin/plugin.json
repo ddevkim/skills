@@ -1,6 +1,6 @@
 {
   "name": "vera",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Build a discussed feature as PRs through Orca worker sessions, with walkthroughs and a live dashboard",
   "author": {
     "name": "ddevkim"

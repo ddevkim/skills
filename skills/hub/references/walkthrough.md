@@ -22,7 +22,7 @@ The file is data for `<hub>/walkthrough.html`, a fixed page that holds the same 
    phrases. Every file:line and code matches the committed head: walkcheck.cjs compares them line by line. */
 window.HUB_WALK = {
   item: "<item-id>", round: <n>, title: "<the outcome sentence>",
-  owner: "<developer>", worker: "<'worker' in the developer's language, e.g. 작업자> <item-id>", date: "<YYYY-MM-DD>",
+  owner: "<state.js owner>", worker: "<'worker' in the developer's language, e.g. 작업자> <item-id>", date: "<YYYY-MM-DD>",
   head: "<short sha, local>", base: "<base branch>", baseSha: "<short sha>", branch: "<branch>",
   kind: "<behaviour | mechanical | schema | docs>",
   changes: [ /* round 2 and later: each change since the previous round */

@@ -283,3 +283,13 @@ test("the allow list says each half is written on its own", () => {
   assert.match(autonomy, /a symlink in one of its paths/, "the per-half skip does not name a symlink");
   assert.match(autonomy, /settings file that is not valid JSON/, "the per-half skip does not name broken JSON");
 });
+
+test("the page owner is the gh login of whoever runs the hub, never the repo owner", () => {
+  const skill = read(path.join(skillDir, "SKILL.md"));
+  const step5 = skill.match(/\n5\. \*\*Build the folder\.\*\*[^\n]*/);
+  assert.ok(step5, "SKILL.md has no step 5");
+  assert.match(step5[0], /`owner` from `gh api user -q \.login`/);
+  assert.match(step5[0], /never the repo's owner/);
+  assert.match(read(path.join(refDir, "dashboard.md")), /`owner`: the `gh api user -q \.login` of whoever runs the hub/);
+  assert.match(read(path.join(refDir, "walkthrough.md")), /owner: "<state\.js owner>"/);
+});
