@@ -82,14 +82,16 @@ The dashboard and the walkthrough page show their labels in Korean or English, f
 
 ### Update
 
-Claude Code (restart the session after):
+Claude Code can update Vera on its own. Third-party marketplaces such as this one start with auto-update off, so turn it on once on each machine: in a Claude Code session run `/plugin`, open the **Marketplaces** tab, select `vera`, then **Enable auto-update**. Claude Code then checks for a new version in the background after a session starts; the running session keeps its version until you run `/reload-plugins`, and the next session loads the new one. If `DISABLE_AUTOUPDATER=1` or `DISABLE_UPDATES=1` is set, the toggle is hidden; set `FORCE_AUTOUPDATE_PLUGINS=1` as well to keep plugin updates.
+
+To update by hand instead (restart the session after):
 
 ```sh
 claude plugin marketplace update vera
 claude plugin update vera@vera
 ```
 
-Codex:
+Codex has no auto-update: run these after each release, once in each `CODEX_HOME` you use:
 
 ```sh
 codex plugin marketplace upgrade vera
